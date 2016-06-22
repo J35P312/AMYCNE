@@ -1,5 +1,6 @@
 import glob
 import os
+import math
 
 #read the coverage file, store the coverage for each bin together with the gc of each bin
 def coverage_tab(file,gc):
@@ -67,27 +68,40 @@ def gc_hist(data):
         #print(str(gc) + " " + str(hist[gc])+ " " + str(len(gc_dictionary[gc])))
     return(hist)
 
+
 #retrieve the data from the selected region
 def regional_cn_est(Data,GC_hist,region):
     chromosome=region[0]
     start=int(region[1])
     end=int(region[2])
 
+
     CN_list=[]
     GC_list=[]
     REF_list=[]
-    for content in Data[chromosome]:
-        if int(content[0]) < end and int(content[1]) > start:
+
+    bin_size=Data[chromosome][0][1]-Data[chromosome][0][0]
+    bins = 0
+    element = 0
+    pos= int(math.floor(start/float(bin_size))*bin_size)
+    nextpos = pos + bin_size
+    while(nextpos > start and pos < end and pos/bin_size < len(Data[chromosome]) ):
+            bins += 1
+            element=int(pos/bin_size);
+            content=Data[chromosome][element]
             
             CN_list.append(content[2]/GC_hist[content[3]][0])
             GC_list.append(content[3])
             REF_list.append(GC_hist[content[3]][0])
-        if int(content[0]) > end:
-            break
+
+            pos+=bin_size;
+            nextpos=pos+bin_size;
+
 
     CN=sum(CN_list)/len(CN_list)
     GC=sum(GC_list)/len(GC_list)
     ref=sum(REF_list)/len(REF_list)
+    
     return([CN,GC,end-start,ref])
 
 

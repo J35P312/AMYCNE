@@ -10,11 +10,13 @@ def main(Data,GC_hist,args):
     len_list=[]
     gc_list=[]
     ref_list=[]
-
+    nregions=0;
+    for region in open(args.region):
+        nregions+=1
     for region in open(args.region):
         cn, gc, length,ref =common.regional_cn_est( Data ,GC_hist, region.split("\t") ) 
         len_list.append(length)
-        coverage_list.append(cn)
+        coverage_list.append(cn*args.plody*nregions)
         gc_list.append(gc)
         ref_list.append(ref)
 
@@ -34,5 +36,5 @@ def main(Data,GC_hist,args):
     #print the results
     sample=args.coverage.replace(".tab","")
     sample=sample.split("/")[-1]
-    print("{}\t{}\t{}\t{}\t{}").format(sample,regional_gc,round(regional_coverage,1),reference_coverage,int(round( len(coverage_list)*args.plody*regional_coverage)))
+    print("{}\t{}\t{}\t{}\t{}").format(sample,regional_gc,round(regional_coverage,1),reference_coverage,int(round(regional_coverage)))
 

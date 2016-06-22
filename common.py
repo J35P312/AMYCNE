@@ -74,7 +74,8 @@ def regional_cn_est(Data,GC_hist,region):
     chromosome=region[0]
     start=int(region[1])
     end=int(region[2])
-
+    if not chromosome in Data:
+        chromosome=chromosome.replace("chr","")
 
     CN_list=[]
     GC_list=[]
@@ -89,10 +90,10 @@ def regional_cn_est(Data,GC_hist,region):
             bins += 1
             element=int(pos/bin_size);
             content=Data[chromosome][element]
-            
-            CN_list.append(content[2]/GC_hist[content[3]][0])
-            GC_list.append(content[3])
-            REF_list.append(GC_hist[content[3]][0])
+            if not content[3] == -1:
+                CN_list.append(content[2]/GC_hist[content[3]][0])
+                GC_list.append(content[3])
+                REF_list.append(GC_hist[content[3]][0])
 
             pos+=bin_size;
             nextpos=pos+bin_size;

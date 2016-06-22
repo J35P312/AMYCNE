@@ -5,7 +5,7 @@ parser.add_argument('--fa' , type=str, required=True,help="the fasta file")
 parser.add_argument('--index' , type=int,default=0,help="the coordinate of the first base of each chromosome , usually 0 or 1(default = 0)")
 parser.add_argument('--size' , type=int, default=1000, help="the size of the bins")
 parser.add_argument('--replace_chr' , action="store_true", help="remove chr prefix(i.e chr1 -> 1)")
-parser.add_argument('--n_mask', action="store_true" , help="regions having more than 20% content set to N or n is set to -1")
+parser.add_argument('--n_mask', action="store_true" , help="regions having more than 20%% content set to N or n is set to -1")
 args = parser.parse_args()
 
 
@@ -39,10 +39,10 @@ for chromosome in chromosomes:
         N=region.count("N")+region.count("n")
         if A+G > 0:
             GC=float(G)/float(A+G)
-        else:
-            GC=0
         elif args.n_mask and N > 0.2:
             GC=-1
+        else:
+            GC=0
         print("{}\t{}\t{}\t{}".format(printed_chromosome,start+args.index,end+args.index, round(GC,2) ))
         start=end
         if end+args.size < len(reference[chromosome]):

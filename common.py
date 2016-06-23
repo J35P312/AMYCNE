@@ -1,6 +1,7 @@
 import glob
 import os
 import math
+import numpy
 
 #read the coverage file, store the coverage for each bin together with the gc of each bin
 def coverage_tab(file,gc):
@@ -52,19 +53,23 @@ def gc_tab(file):
     return data
 
 #compute a gc histogram
-def gc_hist(data):
+def gc_hist(data,coverage_cutoff,size_cutoff):
     gc_dictionary={}
     for chromosome in data:
         for bin in data[chromosome]:
             #print bin
             if not bin[-1] in gc_dictionary:
                 gc_dictionary[bin[-1]]=[]
+            #if bin[-2] < coverage_cutoff:
             gc_dictionary[bin[-1]].append(bin[-2])
 
     hist={}
     for gc in gc_dictionary:
         hist[gc]=-1
-        hist[gc]=[sum(gc_dictionary[gc])/len(gc_dictionary[gc]),len(gc_dictionary[gc])]
+        if len(gc_dictionary[gc]) > size_cutoff:
+            bin_coverage= sum(gc_dictionary[gc])/len(gc_dictionary[gc])
+            if bin_coverage < coverage_cutoff:
+                hist[gc]=[bin_coverage,len(gc_dictionary[gc])]
         #print(str(gc) + " " + str(hist[gc])+ " " + str(len(gc_dictionary[gc])))
     return(hist)
 
@@ -81,8 +86,11 @@ def regional_cn_est(Data,GC_hist,region):
     GC_list=[]
     REF_list=[]
 
-    bin_size=Data[chromosome][0][1]-Data[chromosome][0][0]
     bins = 0
+    used_bins=0
+    
+    bin_size=Data[chromosome][0][1]-Data[chromosome][0][0]
+
     element = 0
     pos= int(math.floor(start/float(bin_size))*bin_size)
     nextpos = pos + bin_size
@@ -90,7 +98,8 @@ def regional_cn_est(Data,GC_hist,region):
             bins += 1
             element=int(pos/bin_size);
             content=Data[chromosome][element]
-            if not content[3] == -1:
+            if not content[3] == -1 and not GC_hist[content[3]] == -1:
+                used_bins += 1
                 CN_list.append(content[2]/GC_hist[content[3]][0])
                 GC_list.append(content[3])
                 REF_list.append(GC_hist[content[3]][0])
@@ -98,12 +107,18 @@ def regional_cn_est(Data,GC_hist,region):
             pos+=bin_size;
             nextpos=pos+bin_size;
 
-
-    CN=sum(CN_list)/len(CN_list)
-    GC=sum(GC_list)/len(GC_list)
-    ref=sum(REF_list)/len(REF_list)
-    
-    return([CN,GC,end-start,ref])
+    if used_bins > 0:
+        CN=sum(CN_list)/len(CN_list)
+        GC=sum(GC_list)/len(GC_list)
+        ref=sum(REF_list)/len(REF_list)
+    else:
+        CN=-1
+        GC=-1
+        ref=-1
+        
+        ci=-1
+        
+    return([CN,GC,end-start,ref,bins,used_bins,CN_list])
 
 
     

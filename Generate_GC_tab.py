@@ -9,6 +9,38 @@ parser.add_argument('--n_mask', action="store_true" , help="regions having more 
 args = parser.parse_args()
 
 
+
+def calculate_complexity(section,k):
+    complexity=0;
+    movement=len(section)-k+1
+    pos=0
+    
+    kmer_combinations={};
+    while pos <= movement:
+        kmer=section[pos:pos+k]
+        if not "N" in kmer:
+            if not kmer in kmer_combinations:
+                kmer_combinations[kmer]=0
+            
+            kmer_combinations[kmer] += 1
+        pos += 1
+        
+    total_kmers=0;
+    max_kmer=-1;
+    for kmer in kmer_combinations:
+        total_kmers += kmer_combinations[kmer]
+        if kmer_combinations[kmer] > max_kmer:
+            max_kmer=kmer_combinations[kmer]
+    if total_kmers > 0:
+        complexity=max_kmer/float(total_kmers)
+    else:
+        complexity = -1
+        
+    if complexity > 0.2:
+        complexity == -1    
+    return(complexity)
+
+
 #read the fasta file
 reference={}
 chromosomes=[]
@@ -43,6 +75,11 @@ for chromosome in chromosomes:
             GC=-1
         else:
             GC=0
+            
+        complexity = calculate_complexity(region,3)
+        if complexity == -1:
+            GC=-1
+            
         print("{}\t{}\t{}\t{}".format(printed_chromosome,start+args.index,end+args.index, round(GC,2) ))
         start=end
         if end+args.size < len(reference[chromosome]):

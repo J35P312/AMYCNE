@@ -4,7 +4,7 @@ import os
 import common
 import genotype
 import annotate
-#import call
+import call
 import time
 
 parser = argparse.ArgumentParser("AMYCNE a copy number estimation toolkit",add_help=False)

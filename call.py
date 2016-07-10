@@ -3,6 +3,13 @@ import scipy.signal
 import numpy
 import math
 
+
+##convolution
+def smooth(y, box_pts):
+    box = numpy.ones(box_pts)/box_pts
+    y_smooth = numpy.convolve(y, box, mode='same')
+    return y_smooth
+
 #claibrate the ratio values of the sex chromosomes
 def calibrate_sex(Data):
     female=True
@@ -92,8 +99,31 @@ def merge(variants,min_bins):
                 merged_variant=[i]
                 past_variant_type= variant_type
     #deletions or duplications separated by small filtered regions or neutral regions are merged
-                
     return(merged_variants)
+
+def merge_similar(variants):
+    merged_variants={}
+    #segments that are separated by nothing will be merged
+    for chromosome in variants:
+        merged_variant=[]
+        i=0
+        while i < len(variants[chromosome])-1:
+        
+        
+            if i == 0:
+                merged_variant.append( i )
+            elif (variants[chromosome][i][2] == variants[chromosome][merged_variant[-1]][2]) and  0.05 > (variants[chromosome][i][0] - variants[chromosome][merged_variant[-1]][1])/float(variants[chromosome][i][1] - variants[chromosome][merged_variant[-1]][0] ):
+                merged_variant.append( i )
+            else:
+                if not chromosome in merged_variants:
+                    merged_variants[chromosome] = []
+                merged_variants[chromosome].append([variants[chromosome][ merged_variant[0] ][0],variants[chromosome][merged_variant[-1]][1],variants[chromosome][merged_variant[-1]][2],variants[chromosome][merged_variant[0] ][-1]])
+                merged_variant=[i]
+            
+            
+            i +=1
+    return(merged_variants)
+
 
 
 #filter the data
@@ -116,9 +146,10 @@ def filter(Data,minimum_bin):
                     filt_size = minimum_bin +1
                 else:
                     filt_size = minimum_bin 
-                wiener_filtered=scipy.signal.wiener(filtered_list,5)
+                    
+                wiener_filtered=smooth(scipy.signal.wiener(filtered_list,5),3)
                 bin_sized_median_filt=scipy.signal.medfilt(wiener_filtered,5)
-                Data[chromosome]["ratio"][start:start+len(filtered_list)]=scipy.signal.medfilt(bin_sized_median_filt,2*filt_size-1)
+                Data[chromosome]["ratio"][start:start+len(filtered_list)]=scipy.signal.medfilt(bin_sized_median_filt,15)
                 filtered_list=[]
                 start=-1
                 
@@ -151,9 +182,9 @@ def main(Data,GC_hist,args):
         for i in range(0,len(Data[chromosome]["ratio"])):
             if Data[chromosome]["ratio"][i] > -1:
                 #print "{}\t{}\t{}\t{}".format(chromosome,i*bin_size,(i+1)*bin_size,Data[chromosome]["ratio"][i]*GC_hist[Data[chromosome]["GC"][i]][0])
-                if Data[chromosome]["ratio"][i] <= 0.75:
+                if Data[chromosome]["ratio"][i] <= 0.7:
                     Data[chromosome]["var"].append("DEL")
-                elif Data[chromosome]["ratio"][i] >= 1.25:
+                elif Data[chromosome]["ratio"][i] >= 1.3:
                     Data[chromosome]["var"].append("DUP")
                 else:
                     Data[chromosome]["var"].append("NEUTRAL")
@@ -173,6 +204,16 @@ def main(Data,GC_hist,args):
                 size_filtered_variants[chromosome].append(variant)
                 
     variants=merge(size_filtered_variants,args.min_bins)
+    
+    CNV_filtered={}
+    for chromosome in variants:
+        for variant in variants[chromosome]:
+            if variant[2] == "DUP" or variant[2] == "DEL":
+                if not chromosome in CNV_filtered:
+                    CNV_filtered[chromosome] = []
+                CNV_filtered[chromosome].append(variant)    
+    
+    variants=merge_similar(CNV_filtered)
     #print the variants
     for chromosome in Data["chromosomes"]:
         if chromosome in variants:

@@ -30,6 +30,8 @@ def main(Data,GC_hist,args):
                         ci="{},{}".format(round(cn*args.plody-SEM*1.96,2),round(cn*args.plody+SEM*1.96,2))
                         
                     content=line.split("\t")
+                    if bins == 0:
+                        bins =-1
                     content[7] += ";AMYCNE=" + str(int(CNE)) + ";BIN_RATIO=" + str(used_bins/float(bins)) + ";REFCOV=" + str(round(ref,2)) + ";AMYCNECI=" + ci
                     new_line="\t".join(content)
                     print new_line.strip()

@@ -4,8 +4,10 @@ import math
 import numpy
 
 #read the coverage file, store the coverage for each bin together with the gc of each bin
-def coverage_tab(file,gc):
-    data={}
+def coverage_tab(file,data):
+
+    for chromosome in data["chromosomes"]:
+        data[chromosome]["coverage"] =[]
 
     for line in open(file):
         if not line[0] == "#":
@@ -13,53 +15,49 @@ def coverage_tab(file,gc):
             content[1]=int(content[1])
             content[3]=float(content[3])
             if content[0] in data:
-                data[content[0]].append([ content[1],content[3] ])
-            else:
-                data[content[0]]=[ [ content[1],content[3] ] ]
-
-    coverage_gc_data={}
-    for chromosome in data:
-        i=0;
-        for bin in data[chromosome]:
-            if chromosome in gc:
-                if not chromosome in coverage_gc_data:
-                    coverage_gc_data[chromosome]=[]
-                coverage_gc_data[chromosome].append(data[chromosome][i])
-                coverage_gc_data[chromosome][-1].append(gc[chromosome][i])
-            
-            i+=1
-    return coverage_gc_data
+                data[content[0]]["coverage"].append(content[3])
+                
+    return data
 
 
 #read the gc content-tab file
 def gc_tab(file):
     data={}
-
+    bin_size=-1
+    data["chromosomes"] = []
+    
     for line in open(file):
         if not line[0] == "#":
             content=line.strip().split("\t")
             content[3]=float(content[3])
+            if not "bin_size" in data:
+                data["bin_size"] = int(content[2])-int(content[1])
+            if not content[0] in data["chromosomes"]:
+                data["chromosomes"].append(content[0])
+                
+            if not content[0] in data:
+                data[content[0]] ={}
+                data[content[0]]["GC"] =[]
+           
+            data[content[0]]["GC"].append(content[3])
 
-            if content[0] in data:
-                data[content[0]].append(content[3])
-            else:
-                data[content[0]]=[content[3]]
     return data
 
 #compute a gc histogram
 def gc_hist(data,coverage_cutoff,size_cutoff):
     gc_dictionary={}
-    for chromosome in data:
-        for bin in data[chromosome]:
-            #print bin
-            if not bin[-1] in gc_dictionary:
-                gc_dictionary[bin[-1]]=[]
+    for chromosome in data["chromosomes"]:
+        for i in range(0,len(data[chromosome]["coverage"])):
+            if "Y" in chromosome or "y" in chromosome or "X" in chromosome or "x" in chromosome:
+                pass
+            elif not data[chromosome]["GC"][i] in gc_dictionary:
+                gc_dictionary[ data[chromosome]["GC"][i]  ]=[]
             #if bin[-2] < coverage_cutoff:
-            gc_dictionary[bin[-1]].append(bin[-2])
+            gc_dictionary[ data[chromosome]["GC"][i]  ].append(data[chromosome]["coverage"][i])
 	
     hist={}
     for gc in gc_dictionary:
-        hist[gc]=-1
+        hist[gc]=[-1,-1]
         if len(gc_dictionary[gc]) > size_cutoff:
             bin_coverage= sum(gc_dictionary[gc])/len(gc_dictionary[gc])
             if bin_coverage < coverage_cutoff:
@@ -84,20 +82,21 @@ def regional_cn_est(Data,GC_hist,region):
     bins = 0
     used_bins=0
     
-    bin_size=Data[chromosome][1][0]-Data[chromosome][0][0]
+    bin_size=Data["bin_size"]
     
     element = 0
     pos= int(math.floor(start/float(bin_size))*bin_size)
     nextpos = pos + bin_size
-    while(nextpos > start and pos < end and pos/bin_size < len(Data[chromosome]) ):
+    while(nextpos > start and pos < end and pos/bin_size < len(Data[chromosome]["coverage"]) ):
             bins += 1
             element=int(pos/bin_size);
-            content=Data[chromosome][element]
-            if not content[2] == -1 and not GC_hist[content[2]] == -1:
+            bin_GC=Data[chromosome]["GC"][element]
+            bin_coverage=Data[chromosome]["coverage"][element]
+            if not bin_GC == -1 and not GC_hist[bin_GC][0] == -1:
                 used_bins += 1
-                CN_list.append(content[1]/GC_hist[content[2]][0])
-                GC_list.append(content[2])
-                REF_list.append(GC_hist[content[2]][0])
+                CN_list.append(bin_coverage/GC_hist[bin_GC][0])
+                GC_list.append(bin_GC)
+                REF_list.append(GC_hist[bin_GC][0])
 
             pos+=bin_size;
             nextpos=pos+bin_size;

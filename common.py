@@ -50,10 +50,11 @@ def gc_hist(data,coverage_cutoff,size_cutoff):
         for i in range(0,len(data[chromosome]["coverage"])):
             if "Y" in chromosome or "y" in chromosome or "X" in chromosome or "x" in chromosome:
                 pass
-            elif not data[chromosome]["GC"][i] in gc_dictionary:
-                gc_dictionary[ data[chromosome]["GC"][i]  ]=[]
-            #if bin[-2] < coverage_cutoff:
-            gc_dictionary[ data[chromosome]["GC"][i]  ].append(data[chromosome]["coverage"][i])
+            else:
+                if not data[chromosome]["GC"][i] in gc_dictionary:
+                    gc_dictionary[ data[chromosome]["GC"][i]  ]=[]
+                #if bin[-2] < coverage_cutoff:
+                gc_dictionary[ data[chromosome]["GC"][i]  ].append(data[chromosome]["coverage"][i])
 	
     hist={}
     for gc in gc_dictionary:

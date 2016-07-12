@@ -112,7 +112,7 @@ def merge_similar(variants):
         
             if i == 0:
                 merged_variant.append( i )
-            elif (variants[chromosome][i][2] == variants[chromosome][merged_variant[-1]][2]) and  0.05 > (variants[chromosome][i][0] - variants[chromosome][merged_variant[-1]][1])/float(variants[chromosome][i][1] - variants[chromosome][merged_variant[-1]][0] ):
+            elif (variants[chromosome][i][2] == variants[chromosome][merged_variant[-1]][2]) and  0.1 >= (variants[chromosome][i][0] - variants[chromosome][merged_variant[-1]][1])/float(variants[chromosome][i][1] - variants[chromosome][merged_variant[-1]][0] ):
                 merged_variant.append( i )
             else:
                 if not chromosome in merged_variants:

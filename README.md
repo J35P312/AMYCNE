@@ -8,5 +8,8 @@ To improve the performance of AMYCNE, the code of AMYCNE may be compiled using c
 
 python setup.py build_ext --inplace
 
-
+# Input
+========
+For each mode, AMYCNE requires at least two input file. One input file describing the GC in bins across the entire genome, and one file describing the coverage in bins of the same size as those in the GC content file. The GC content file may be created using the Generate_GC_tab.py, but any tab separated GC file should work.
+The coverage file could be generated using TIDDIT, which sambaba might work as well.
 

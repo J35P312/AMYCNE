@@ -3,13 +3,6 @@ import scipy.signal
 import numpy
 import math
 
-
-##convolution
-def smooth(y, box_pts):
-    box = numpy.ones(box_pts)/box_pts
-    y_smooth = numpy.convolve(y, box, mode='same')
-    return y_smooth
-
 #claibrate the ratio values of the sex chromosomes
 def calibrate_sex(Data):
     female=True
@@ -38,7 +31,7 @@ def calibrate_sex(Data):
             if "Y" in chromosome or "y" in chromosome or "X" in chromosome or "x" in chromosome:
                 #multiply the ratios on the x and y chromosomes by 2
                 for i in range(0,len(Data[chromosome]["ratio"])):
-                    if Data[chromosome]["ratio"][i] == -1:
+                    if not Data[chromosome]["ratio"][i] == -1:
                         Data[chromosome]["ratio"][i] = 2*Data[chromosome]["ratio"][i]
     
     return(Data)
@@ -128,6 +121,8 @@ def merge_similar(variants):
 
 #filter the data
 def filter(Data,minimum_bin):
+    #box = numpy.ones(10)/5
+   
 	
     start=-1
     for chromosome in Data["chromosomes"]:
@@ -143,13 +138,15 @@ def filter(Data,minimum_bin):
                 
             if start !=-1 and Data[chromosome]["ratio"][i] == -1:
                 if minimum_bin % 2 == 0:
-                    filt_size = minimum_bin +1
-                else:
-                    filt_size = minimum_bin 
+                    minimum_bin += 1
+
                     
-                wiener_filtered=smooth(scipy.signal.wiener(filtered_list,5),3)
-                bin_sized_median_filt=scipy.signal.medfilt(wiener_filtered,5)
-                Data[chromosome]["ratio"][start:start+len(filtered_list)]=scipy.signal.medfilt(bin_sized_median_filt,15)
+                    
+                #wiener_filtered = numpy.convolve(scipy.signal.wiener(filtered_list,5), box, mode='same')
+                wiener_filtered = scipy.signal.wiener(filtered_list,minimum_bin*3)
+                bin_sized_median_filt=scipy.signal.medfilt(wiener_filtered,minimum_bin)
+                bin_sized_median_filt=scipy.signal.medfilt(bin_sized_median_filt,minimum_bin*2+1)
+                Data[chromosome]["ratio"][start:start+len(filtered_list)]=scipy.signal.medfilt(bin_sized_median_filt,minimum_bin*3)
                 filtered_list=[]
                 start=-1
                 
@@ -163,6 +160,8 @@ def filter(Data,minimum_bin):
 def main(Data,GC_hist,args):
     #compute the scaled coverage
     bin_size=Data["bin_size"]
+    args.min_bins=int(args.min_var/bin_size)
+    args.min_filt=int(args.filter/bin_size)
     for chromosome in Data["chromosomes"]:
         Data[chromosome]["ratio"]=[]
         for i in range(0,len(Data[chromosome]["coverage"])):
@@ -173,14 +172,14 @@ def main(Data,GC_hist,args):
                 
     Data=calibrate_sex(Data)
     #filter the bins
-    Data=filter(Data,args.min_bins)
+    Data=filter(Data,args.min_filt)
     
     deleted_bins={}
     duplicated_bins={}         
     for chromosome in Data["chromosomes"]:
         Data[chromosome]["var"]=[];
         for i in range(0,len(Data[chromosome]["ratio"])):
-            if Data[chromosome]["ratio"][i] > -1:
+            if Data[chromosome]["coverage"][i] >= 0 and Data[chromosome]["ratio"][i] >= 0 :
                 #print "{}\t{}\t{}\t{}".format(chromosome,i*bin_size,(i+1)*bin_size,Data[chromosome]["ratio"][i]*GC_hist[Data[chromosome]["GC"][i]][0])
                 if Data[chromosome]["ratio"][i] <= 0.7:
                     Data[chromosome]["var"].append("DEL")
@@ -215,9 +214,22 @@ def main(Data,GC_hist,args):
     
     variants=merge_similar(CNV_filtered)
     #print the variants
+    print("##fileformat=VCFv4.1")
+    print("##source=AMYCNE")
+    print("##ALT=<ID=DEL,Description=\"Deletion>")
+    print("##ALT=<ID=DUP,Description=\"Duplication\">")
+    print("##INFO=<ID=RDR,Number=1,Type=float,Description=\"Average coverage/reference ratio\">")
+    print("##INFO=<ID=END,Number=1,Type=float,Description=\"The end position of the variant\">")
+    print("##INFO=<ID=SVLEN,Number=1,Type=float,Description=\"The length of the variant\">")
+    print("##INFO=<ID=BINS,Number=1,Type=float,Description=\"The number of bins used to call the variant\">")
+    print("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
+    
+    id_tag=0;
     for chromosome in Data["chromosomes"]:
         if chromosome in variants:
           for variant in variants[chromosome]:
             if variant[2] == "DUP" or variant[2] == "DEL":
-                print "{}\t{}\t{}\t{}\t{}\t{}".format(chromosome,bin_size*variant[0],bin_size*variant[1],variant[2],variant[3],(variant[1]-variant[0])*bin_size) 
-            
+                id_tag +=1
+                firstrow= "{}\t{}\tAMYCNE_{}\tN\t<{}>\t.\tPASS".format(chromosome,bin_size*variant[0],id_tag,variant[2]) 
+                info_field="END={};SVLEN={};RDR={}".format(bin_size*variant[1],(variant[1]-variant[0])*bin_size,variant[3] )
+                print("\t".join([firstrow,info_field]))

@@ -30,8 +30,25 @@ def main(Data,GC_hist,args):
     bin_count = 0
     used_bin_count = 0
     
-    for line in open(args.region):
-        mode,regions = retrieve_regions(line)
+    operations=[]
+    if args.region:
+        for line in open(args.region):
+            mode,regions = retrieve_regions(line)
+            operations.append({"mode": mode, "regions":regions,"command":line.strip()})
+    else:
+    
+        chromosome=region.split(":")[0]
+        pos=region.split(":")[-1]
+        pos=pos.split("-")
+    
+        operations.append({"mode": "sum", "regions":[chromosome]+pos,"command":args.R})
+    
+    
+    for operation in operations:
+        
+        mode= operation["mode"]
+        regions= operation["regions"]
+        line=operation["command"]
         for region in regions:
             cn, gc, length,ref,bins,used_bins,bin_list =common.regional_cn_est( Data ,GC_hist, region )
             

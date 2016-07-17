@@ -46,6 +46,11 @@ def gc_tab(file):
 #compute a gc histogram
 def gc_hist(data,coverage_cutoff,size_cutoff):
     gc_dictionary={}
+    #mean_values={}
+    #std={}
+    #for chromosome in data["chromosomes"]:
+    #    mean_values[chromosome] = numpy.mean(data[chromosome]["coverage"])
+        
     for chromosome in data["chromosomes"]:
         for i in range(0,len(data[chromosome]["coverage"])):
             if "Y" in chromosome or "y" in chromosome or "X" in chromosome or "x" in chromosome:
@@ -53,9 +58,10 @@ def gc_hist(data,coverage_cutoff,size_cutoff):
             else:
                 if not data[chromosome]["GC"][i] in gc_dictionary:
                     gc_dictionary[ data[chromosome]["GC"][i]  ]=[]
-                #if bin[-2] < coverage_cutoff:
-                gc_dictionary[ data[chromosome]["GC"][i]  ].append(data[chromosome]["coverage"][i])
-	
+                
+                if data[chromosome]["coverage"][i] > 0:
+                    gc_dictionary[ data[chromosome]["GC"][i]  ].append(data[chromosome]["coverage"][i])
+	                    
     hist={}
     for gc in gc_dictionary:
         hist[gc]=[-1,-1]

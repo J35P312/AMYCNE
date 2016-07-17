@@ -59,7 +59,7 @@ def segmentation(Data,minimum_bin):
                 if not chromosome in variants:
                     variants[chromosome] = []
                     
-                variants[chromosome].append([start_pos,end_pos,past_variant_type,sum(Data[chromosome]["ratio"][start_pos:i])/float(end_pos-start_pos)])
+                variants[chromosome].append({"start":start_pos,"end":end_pos,"type":past_variant_type,"ratio":sum(Data[chromosome]["ratio"][start_pos:i])/float(end_pos-start_pos),"bins":end_pos-start_pos})
                 
                 past_variant_type=variant_type       
                 start_pos=i
@@ -76,7 +76,7 @@ def merge(variants,min_bins):
         merged_variant=[]
         
         for i in range(0,len(variants[chromosome])):
-            variant_type = variants[chromosome][i][2]
+            variant_type = variants[chromosome][i]["type"]
             #print variant_type
             if past_variant_type == -1:
                 past_variant_type= variant_type
@@ -88,7 +88,21 @@ def merge(variants,min_bins):
             else:
                 if not chromosome in merged_variants:
                     merged_variants[chromosome] = []
-                merged_variants[chromosome].append([variants[chromosome][ merged_variant[0] ][0],variants[chromosome][merged_variant[-1]][1],past_variant_type,variants[chromosome][merged_variant[0] ][-1]])
+
+                variant={}
+                variant["start"]=variants[chromosome][ merged_variant[0] ]["start"]
+                variant["end"]=variants[chromosome][merged_variant[-1]]["end"]
+                variant["type"]=past_variant_type
+                #compute the number of bins within this variant
+                variant["bins"]=0
+                for j in merged_variant:
+                    variant["bins"] += variants[chromosome][j]["end"]-variants[chromosome][j]["start"]
+                #compute the mean ratio of the variant
+                variant["ratio"]= 0
+                for j in merged_variant:
+                    variant["ratio"] += variants[chromosome][j]["ratio"]*variants[chromosome][j]["bins"]
+                variant["ratio"]=variant["ratio"]/variant["bins"]
+                merged_variants[chromosome].append(variant)
                 merged_variant=[i]
                 past_variant_type= variant_type
     #deletions or duplications separated by small filtered regions or neutral regions are merged
@@ -105,12 +119,26 @@ def merge_similar(variants):
         
             if i == 0:
                 merged_variant.append( i )
-            elif (variants[chromosome][i][2] == variants[chromosome][merged_variant[-1]][2]) and  0.1 >= (variants[chromosome][i][0] - variants[chromosome][merged_variant[-1]][1])/float(variants[chromosome][i][1] - variants[chromosome][merged_variant[-1]][0] ):
+            elif (variants[chromosome][i]["type"] == variants[chromosome][merged_variant[-1]]["type"]) and  0.1 >= (variants[chromosome][i]["start"] - variants[chromosome][merged_variant[-1]]["end"])/float(variants[chromosome][i]["end"] - variants[chromosome][merged_variant[-1]]["start"] ):
                 merged_variant.append( i )
             else:
                 if not chromosome in merged_variants:
                     merged_variants[chromosome] = []
-                merged_variants[chromosome].append([variants[chromosome][ merged_variant[0] ][0],variants[chromosome][merged_variant[-1]][1],variants[chromosome][merged_variant[-1]][2],variants[chromosome][merged_variant[0] ][-1]])
+                variant={}   
+                variant["start"]=variants[chromosome][ merged_variant[0] ]["start"]
+                variant["end"]=variants[chromosome][merged_variant[-1]]["end"]
+                variant["type"]=variants[chromosome][merged_variant[-1]]["type"]
+                #compute the number of bins within this variant
+                variant["bins"]=0
+                for j in merged_variant:
+                    variant["bins"] += variants[chromosome][j]["end"]-variants[chromosome][j]["start"]
+                #compute the mean ratio of the variant
+                variant["ratio"]= 0
+                for j in merged_variant:
+                    variant["ratio"] += variants[chromosome][j]["ratio"]*variants[chromosome][j]["bins"]
+                variant["ratio"]=variant["ratio"]/variant["bins"]
+                        
+                merged_variants[chromosome].append(variant)
                 merged_variant=[i]
             
             
@@ -139,14 +167,11 @@ def filter(Data,minimum_bin):
             if start !=-1 and Data[chromosome]["ratio"][i] == -1:
                 if minimum_bin % 2 == 0:
                     minimum_bin += 1
-
-                    
-                    
-                #wiener_filtered = numpy.convolve(scipy.signal.wiener(filtered_list,5), box, mode='same')
-                wiener_filtered = scipy.signal.wiener(filtered_list,minimum_bin*3)
-                bin_sized_median_filt=scipy.signal.medfilt(wiener_filtered,minimum_bin)
-                bin_sized_median_filt=scipy.signal.medfilt(bin_sized_median_filt,minimum_bin*2+1)
-                Data[chromosome]["ratio"][start:start+len(filtered_list)]=scipy.signal.medfilt(bin_sized_median_filt,minimum_bin*3)
+                
+                
+                small=scipy.signal.medfilt(filtered_list,minimum_bin)
+                medium=scipy.signal.medfilt(small,minimum_bin*2+1)
+                Data[chromosome]["ratio"][start:start+len(filtered_list)]=scipy.signal.medfilt(medium,minimum_bin*3)
                 filtered_list=[]
                 start=-1
                 
@@ -197,7 +222,7 @@ def main(Data,GC_hist,args):
     
     for chromosome in variants:
         for variant in variants[chromosome]:
-            if variant[1]-variant[0] >= args.min_bins:
+            if variant["bins"] >= args.min_bins:
                 if not chromosome in size_filtered_variants:
                     size_filtered_variants[chromosome] = []
                 size_filtered_variants[chromosome].append(variant)
@@ -207,7 +232,7 @@ def main(Data,GC_hist,args):
     CNV_filtered={}
     for chromosome in variants:
         for variant in variants[chromosome]:
-            if variant[2] == "DUP" or variant[2] == "DEL":
+            if variant["type"] == "DUP" or variant["type"] == "DEL":
                 if not chromosome in CNV_filtered:
                     CNV_filtered[chromosome] = []
                 CNV_filtered[chromosome].append(variant)    
@@ -228,8 +253,8 @@ def main(Data,GC_hist,args):
     for chromosome in Data["chromosomes"]:
         if chromosome in variants:
           for variant in variants[chromosome]:
-            if variant[2] == "DUP" or variant[2] == "DEL":
+            if variant["type"] == "DUP" or variant["type"] == "DEL":
                 id_tag +=1
-                firstrow= "{}\t{}\tAMYCNE_{}\tN\t<{}>\t.\tPASS".format(chromosome,bin_size*variant[0],id_tag,variant[2]) 
-                info_field="END={};SVLEN={};RDR={}".format(bin_size*variant[1],(variant[1]-variant[0])*bin_size,variant[3] )
+                firstrow= "{}\t{}\tAMYCNE_{}\tN\t<{}>\t.\tPASS".format(chromosome,bin_size*variant["start"],id_tag,variant["type"]) 
+                info_field="END={};SVLEN={};RDR={};BINS={}".format(bin_size*variant["end"],(variant["end"]-variant["start"])*bin_size,variant["ratio"],variant["bins"] )
                 print("\t".join([firstrow,info_field]))

@@ -8,6 +8,7 @@ def coverage_tab(file,data):
 
     for chromosome in data["chromosomes"]:
         data[chromosome]["coverage"] =[]
+        data[chromosome]["quality"] = []
 
     for line in open(file):
         if not line[0] == "#":
@@ -16,7 +17,8 @@ def coverage_tab(file,data):
             content[3]=float(content[3])
             if content[0] in data:
                 data[content[0]]["coverage"].append(content[3])
-                
+                if len(content) == 5:
+                    data[content[0]]["quality"].append(float(content[4]))
     return data
 
 
@@ -44,7 +46,7 @@ def gc_tab(file):
     return data
 
 #compute a gc histogram
-def gc_hist(data,coverage_cutoff,size_cutoff):
+def gc_hist(data,coverage_cutoff,size_cutoff,refQ):
     gc_dictionary={}
     #mean_values={}
     #std={}
@@ -60,8 +62,11 @@ def gc_hist(data,coverage_cutoff,size_cutoff):
                     gc_dictionary[ data[chromosome]["GC"][i]  ]=[]
                 
                 if data[chromosome]["coverage"][i] > 0:
-                    gc_dictionary[ data[chromosome]["GC"][i]  ].append(data[chromosome]["coverage"][i])
-	                    
+                    if "quality" in data[chromosome]:
+                        if data[chromosome]["quality"] >= refQ:
+                            gc_dictionary[ data[chromosome]["GC"][i]  ].append(data[chromosome]["coverage"][i])
+                    else:
+                        gc_dictionary[ data[chromosome]["GC"][i]  ].append(data[chromosome]["coverage"][i])
     hist={}
     for gc in gc_dictionary:
         hist[gc]=[-1,-1]
@@ -75,7 +80,7 @@ def gc_hist(data,coverage_cutoff,size_cutoff):
 
 
 #retrieve the data from the selected region
-def regional_cn_est(Data,GC_hist,region):
+def regional_cn_est(Data,GC_hist,region,Q):
     chromosome=region[0]
     start=int(region[1])
     end=int(region[2])
@@ -95,15 +100,22 @@ def regional_cn_est(Data,GC_hist,region):
     pos= int(math.floor(start/float(bin_size))*bin_size)
     nextpos = pos + bin_size
     while(nextpos > start and pos < end and pos/bin_size < len(Data[chromosome]["coverage"]) ):
+
             bins += 1
             element=int(pos/bin_size);
             bin_GC=Data[chromosome]["GC"][element]
             bin_coverage=Data[chromosome]["coverage"][element]
+            Pass= True
+            if "quality" in Data[chromosome]:
+                if Data[chromosome]["quality"][element] < Q:
+                    Pass = False
+            
             if not bin_GC == -1 and not GC_hist[bin_GC][0] == -1:
-                used_bins += 1
-                CN_list.append(bin_coverage/GC_hist[bin_GC][0])
-                GC_list.append(bin_GC)
-                REF_list.append(GC_hist[bin_GC][0])
+                if Pass:
+                    used_bins += 1
+                    CN_list.append(bin_coverage/GC_hist[bin_GC][0])
+                    GC_list.append(bin_GC)
+                    REF_list.append(GC_hist[bin_GC][0])
 
             pos+=bin_size;
             nextpos=pos+bin_size;

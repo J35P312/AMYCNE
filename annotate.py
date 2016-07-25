@@ -18,7 +18,7 @@ def main(Data,GC_hist,args):
             chrA,posA,chrB,posB,event_type,INFO,FORMAT = readVCF.readVCFLine(line)
             if chrA == chrB:
                 if chrA in Data:
-                    cn, gc, length,ref,bins,used_bins,bin_list =common.regional_cn_est( Data ,GC_hist, [chrA,posA,posB] )
+                    cn, gc, length,ref,bins,used_bins,bin_list =common.regional_cn_est( Data ,GC_hist, [chrA,posA,posB],args.Q )
                     ci="(0,0)"
                     CNE = round( cn*args.plody )
                     if CNE < 0:

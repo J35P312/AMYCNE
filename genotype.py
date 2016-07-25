@@ -50,7 +50,7 @@ def main(Data,GC_hist,args):
         regions= operation["regions"]
         line=operation["command"]
         for region in regions:
-            cn, gc, length,ref,bins,used_bins,bin_list =common.regional_cn_est( Data ,GC_hist, region )
+            cn, gc, length,ref,bins,used_bins,bin_list =common.regional_cn_est( Data ,GC_hist, region,args.Q )
             
             if cn > -1:
                 total_bin_list+=bin_list

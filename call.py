@@ -257,4 +257,21 @@ def main(Data,GC_hist,args):
                 id_tag +=1
                 firstrow= "{}\t{}\tAMYCNE_{}\tN\t<{}>\t.\tPASS".format(chromosome,bin_size*variant["start"],id_tag,variant["type"]) 
                 info_field="END={};SVLEN={};RDR={};BINS={}".format(bin_size*variant["end"],(variant["end"]-variant["start"])*bin_size,variant["ratio"],variant["bins"] )
+                if "quality" in Data[chromosome]:
+                    failed_bins=0
+                    for i in range(variant["start"],variant["end"]):
+                        if Data[chromosome]["quality"][i] < args.Q and Data[chromosome]["coverage"][i] > 0:
+                            failed_bins += 1
+                    if failed_bins/float(variant["end"]-variant["start"]) > 0.25:
+                        firstrow= firstrow.replace("PASS","FAIL")
+                    info_field +=";QUAL={}".format( failed_bins/float(variant["end"]-variant["start"]) )
+                    
+                failed_bins=0
+                for i in range(variant["start"],variant["end"]):
+                    if Data[chromosome]["ratio"][i] < 0:
+                        failed_bins += 1
+                if failed_bins/float(variant["end"]-variant["start"]) > 0.25:
+                    firstrow= firstrow.replace("PASS","FILTER")
+                info_field +=";FAILED_BINS={}".format( failed_bins/float(variant["end"]-variant["start"]) )                
+                    
                 print("\t".join([firstrow,info_field]))

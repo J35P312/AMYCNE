@@ -67,6 +67,29 @@ def segmentation(Data,minimum_bin):
                 
     return(variants)
 
+def chromosome_hist(Data,Q):
+    ratio_hist={}
+    
+    for chromosome in Data["chromosomes"]:
+        bins=[]
+        cov=[]
+        for i in range(0,len(Data[chromosome]["ratio"])):
+            if Data[chromosome]["ratio"][i] > 0 and Data[chromosome]["quality"][i] > Q and Data[chromosome]["GC"][i] > 0:
+                bins.append(Data[chromosome]["ratio"][i])
+                cov.append(Data[chromosome]["coverage"][i])
+        if len(bins) > 0:        
+            ratio_hist[chromosome]=[sum(bins)/len(bins),0,sum(cov)/len(cov),0]
+            n=len(bins)
+            for i in range(0,len(bins)):
+                ratio_hist[chromosome][1]+=(ratio_hist[chromosome][0]-bins[i])*(ratio_hist[chromosome][0]-bins[i])/(n*n)
+                ratio_hist[chromosome][3]+=(ratio_hist[chromosome][2]-cov[i])*(ratio_hist[chromosome][2]-cov[i])/(n*n)
+            
+            ratio_hist[chromosome][1]=math.sqrt(ratio_hist[chromosome][1])
+            ratio_hist[chromosome][3]=math.sqrt(ratio_hist[chromosome][3])
+        else:
+            ratio_hist[chromosome]=[0,0,0,0]
+    return(ratio_hist)
+    
 #merge segments    
 def merge(variants,min_bins):
     merged_variants={}
@@ -184,6 +207,7 @@ def filter(Data,minimum_bin):
 
 def main(Data,GC_hist,args):
     #compute the scaled coverage
+    print("finished reading the coverage data")
     bin_size=Data["bin_size"]
     args.min_bins=int(args.min_var/bin_size)
     args.min_filt=int(args.filter/bin_size)
@@ -197,10 +221,21 @@ def main(Data,GC_hist,args):
                 
     Data=calibrate_sex(Data)
     #filter the bins
+    print("applying filters")
     Data=filter(Data,args.min_filt)
-    
+    print("computing coverage histogram")
+    ratio_hist=chromosome_hist(Data,args.Q)
+    print("Intrachromosomal scaling")
+    for chromosome in Data["chromosomes"]:
+        if ratio_hist[chromosome][0] == 0:
+            continue
+            
+        for i in range(0,len(Data[chromosome]["ratio"])):
+            Data[chromosome]["ratio"][i]=Data[chromosome]["ratio"][i]/ratio_hist[chromosome][0]
+            
     deleted_bins={}
-    duplicated_bins={}         
+    duplicated_bins={}
+    print("segmentation")
     for chromosome in Data["chromosomes"]:
         Data[chromosome]["var"]=[];
         for i in range(0,len(Data[chromosome]["ratio"])):
@@ -239,15 +274,19 @@ def main(Data,GC_hist,args):
     
     variants=merge_similar(CNV_filtered)
     #print the variants
-    print("##fileformat=VCFv4.1")
-    print("##source=AMYCNE")
-    print("##ALT=<ID=DEL,Description=\"Deletion>")
-    print("##ALT=<ID=DUP,Description=\"Duplication\">")
-    print("##INFO=<ID=RDR,Number=1,Type=float,Description=\"Average coverage/reference ratio\">")
-    print("##INFO=<ID=END,Number=1,Type=float,Description=\"The end position of the variant\">")
-    print("##INFO=<ID=SVLEN,Number=1,Type=float,Description=\"The length of the variant\">")
-    print("##INFO=<ID=BINS,Number=1,Type=float,Description=\"The number of bins used to call the variant\">")
-    print("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
+    print("done!")
+    f=open(args.prefix,"w")
+
+    f.write("##fileformat=VCFv4.1\n")
+    f.write("##source=AMYCNE\n")
+    f.write("##ALT=<ID=DEL,Description=\"Deletion>\n")
+    f.write("##ALT=<ID=DUP,Description=\"Duplication\">\n")
+    f.write("##INFO=<ID=RDR,Number=1,Type=float,Description=\"Average coverage/reference ratio\">\n")
+    f.write("##INFO=<ID=END,Number=1,Type=float,Description=\"The end position of the variant\">\n")
+    f.write("##INFO=<ID=SVLEN,Number=1,Type=float,Description=\"The length of the variant\">\n")
+    f.write("##INFO=<ID=BINS,Number=1,Type=float,Description=\"The number of bins used to call the variant\">\n")
+    f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+    
     
     id_tag=0;
     for chromosome in Data["chromosomes"]:
@@ -260,18 +299,33 @@ def main(Data,GC_hist,args):
                 if "quality" in Data[chromosome]:
                     failed_bins=0
                     for i in range(variant["start"],variant["end"]):
-                        if Data[chromosome]["quality"][i] < args.Q and Data[chromosome]["coverage"][i] > 0:
+                        if Data[chromosome]["quality"][i] < args.Q and Data[chromosome]["GC"][i] > 0:
                             failed_bins += 1
-                    if failed_bins/float(variant["end"]-variant["start"]) > 0.25:
+                    if failed_bins/float(variant["end"]-variant["start"]) > 0.2:
                         firstrow= firstrow.replace("PASS","FAIL")
                     info_field +=";QUAL={}".format( failed_bins/float(variant["end"]-variant["start"]) )
                     
                 failed_bins=0
                 for i in range(variant["start"],variant["end"]):
-                    if Data[chromosome]["ratio"][i] < 0:
+                    if Data[chromosome]["GC"][i] < 0:
                         failed_bins += 1
-                if failed_bins/float(variant["end"]-variant["start"]) > 0.25:
+                if failed_bins/float(variant["end"]-variant["start"]) > 0.2:
                     firstrow= firstrow.replace("PASS","FILTER")
                 info_field +=";FAILED_BINS={}".format( failed_bins/float(variant["end"]-variant["start"]) )                
-                    
-                print("\t".join([firstrow,info_field]))
+                
+                bins=[]
+                for i in range(variant["start"],variant["end"]):
+                    if Data[chromosome]["GC"][i] > 0 and Data[chromosome]["ratio"][i] > 0:
+                        bins.append(Data[chromosome]["ratio"][i])
+                if len(bins) > 0:
+                    mean=sum(bins)/len(bins)
+                    SEM=numpy.std(bins)/numpy.sqrt( len(bins) )
+                    ci="({},{})".format(round(mean-SEM*1.96,2),round(mean+SEM*1.96,2))
+                    info_field+=";CI={}".format(ci)
+                else:
+                    firstrow= firstrow.replace("PASS","LowQual")
+                    ci="(-inf,inf)"
+                info_field+=";CI={}".format(ci) 
+                info_field+=";CHR_ratio={};CHR_ratio_std={};CHR_coverage={};CHR_coverage_std={}".format(ratio_hist[chromosome][0],ratio_hist[chromosome][1],ratio_hist[chromosome][2],ratio_hist[chromosome][3])
+                f.write("\t".join([firstrow,info_field])+"\n")
+    f.close()

@@ -15,6 +15,10 @@ def coverage_tab(file,data):
             content=line.strip().split("\t")
             content[1]=int(content[1])
             content[3]=float(content[3])
+            
+            if not content[0] in data["chromosomes"]:
+                continue
+                
             if content[0] in data:
                 data[content[0]]["coverage"].append(content[3])
                 if len(content) == 5:

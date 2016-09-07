@@ -81,8 +81,8 @@ def chromosome_hist(Data,Q):
             ratio_hist[chromosome]=[sum(bins)/len(bins),0,sum(cov)/len(cov),0]
             n=len(bins)
             for i in range(0,len(bins)):
-                ratio_hist[chromosome][1]+=(ratio_hist[chromosome][0]-bins[i])*(ratio_hist[chromosome][0]-bins[i])/(n*n)
-                ratio_hist[chromosome][3]+=(ratio_hist[chromosome][2]-cov[i])*(ratio_hist[chromosome][2]-cov[i])/(n*n)
+                ratio_hist[chromosome][1]+=(ratio_hist[chromosome][0]-bins[i])*(ratio_hist[chromosome][0]-bins[i])/(n)
+                ratio_hist[chromosome][3]+=(ratio_hist[chromosome][2]-cov[i])*(ratio_hist[chromosome][2]-cov[i])/(n)
             
             ratio_hist[chromosome][1]=math.sqrt(ratio_hist[chromosome][1])
             ratio_hist[chromosome][3]=math.sqrt(ratio_hist[chromosome][3])
@@ -250,9 +250,9 @@ def main(Data,GC_hist,args):
         for i in range(0,len(Data[chromosome]["ratio"])):
             if Data[chromosome]["coverage"][i] >= 0 and Data[chromosome]["ratio"][i] >= 0 :
                 #print "{}\t{}\t{}\t{}".format(chromosome,i*bin_size,(i+1)*bin_size,Data[chromosome]["ratio"][i]*GC_hist[Data[chromosome]["GC"][i]][0])
-                if Data[chromosome]["ratio"][i] <= 0.7:
+                if Data[chromosome]["ratio"][i] <= 0.75:
                     Data[chromosome]["var"].append("DEL")
-                elif Data[chromosome]["ratio"][i] >= 1.3:
+                elif Data[chromosome]["ratio"][i] >= 1.25:
                     Data[chromosome]["var"].append("DUP")
                 else:
                     Data[chromosome]["var"].append("NEUTRAL")
@@ -265,33 +265,36 @@ def main(Data,GC_hist,args):
     
 
     #merge segments separated by weak signal variants
-    for chromosome in variants:
-        i=0
-        while i+2 < len(variants[chromosome]):
-            merge_var= False
-            if variants[chromosome][i]["type"] == variants[chromosome][i+2]["type"] and variants[chromosome][i+1]["type"] =="NEUTRAL":
-                if variants[chromosome][i]["type"] == "DEL":
-                    if(variants[chromosome][i+1]["ratio"] <= 0.75) :
-                        merge_var = True
-                
-                elif variants[chromosome][i]["type"] == "DUP":
-                    if(variants[chromosome][i+1]["ratio"] >= 1.25) :
-                        merge_var = True
-                    
-                if merge_var:
-                    variants[chromosome][i]["end"]=variants[chromosome][i+2]["end"]
-                    nbins=sum([variants[chromosome][i]["bins"],variants[chromosome][i+2]["bins"],variants[chromosome][i+1]["bins"]])
-                    rp1=variants[chromosome][i]["ratio"]*variants[chromosome][i]["bins"]
-                    rp2=variants[chromosome][i+1]["ratio"]*variants[chromosome][i+1]["bins"]
-                    rp3=variants[chromosome][i+2]["ratio"]*variants[chromosome][i+2]["bins"]
-                    variants[chromosome][i]["ratio"] = sum([rp1,rp2,rp3])/nbins
-                    variants[chromosome][i]["bins"] = nbins
-                    del variants[chromosome][i+2]
-                    del variants[chromosome][i+1]
-                    i += -1
-                    
-                    
-            i += 1 
+    #for chromosome in variants:
+    #    i=0
+    #    while i+2 < len(variants[chromosome]):
+    #        merge_var= False
+    #        if variants[chromosome][i]["type"] == variants[chromosome][i+2]["type"] and variants[chromosome][i+1]["type"] =="NEUTRAL":
+    #            if variants[chromosome][i]["type"] == "DEL":
+    #                if(variants[chromosome][i+1]["ratio"] <= 0.8) :
+    #                    merge_var = True
+    #            
+    #            elif variants[chromosome][i]["type"] == "DUP":
+    #                if(variants[chromosome][i+1]["ratio"] >= 1.2) :
+    #                    merge_var = True
+    #              
+    #            
+    #            if merge_var:
+    #                variants[chromosome][i]["end"]=variants[chromosome][i+2]["end"]
+    #                nbins=sum([variants[chromosome][i]["bins"],variants[chromosome][i+2]["bins"],variants[chromosome][i+1]["bins"]])
+    #                rp1=variants[chromosome][i]["ratio"]*variants[chromosome][i]["bins"]
+    #                rp2=variants[chromosome][i+1]["ratio"]*variants[chromosome][i+1]["bins"]
+    #                rp3=variants[chromosome][i+2]["ratio"]*variants[chromosome][i+2]["bins"]
+    #                variants[chromosome][i]["ratio"] = sum([rp1,rp2,rp3])/nbins
+    #                variants[chromosome][i]["bins"] = nbins
+    #                del variants[chromosome][i+2]
+    #                del variants[chromosome][i+1]
+    #                i += -1
+    #                
+    #                
+    #        i += 1 
+    
+    
     size_filtered_variants={}   
     for chromosome in variants:
         for variant in variants[chromosome]:
@@ -335,12 +338,19 @@ def main(Data,GC_hist,args):
                 id_tag +=1
                 firstrow= "{}\t{}\tAMYCNE_{}\tN\t<{}>\t.\tPASS".format(chromosome,bin_size*variant["start"],id_tag,variant["type"]) 
                 info_field="END={};SVLEN={};RDR={};BINS={}".format(bin_size*variant["end"],(variant["end"]-variant["start"])*bin_size,variant["ratio"],variant["bins"] )
+                
+                CN=0
+                cn, gc, length,ref,bins,used_bins,bin_list =common.regional_cn_est( Data ,GC_hist, [chromosome,variant["start"]*bin_size,variant["end"]*bin_size],args.Q )
+                info_field += ";CN={}".format( int(round(cn*args.plody)))
+                if int(round(cn*args.plody)) == args.plody:
+                    firstrow= firstrow.replace("PASS","NOCNV")
+                    
                 if "quality" in Data[chromosome]:
                     failed_bins=0
                     for i in range(variant["start"],variant["end"]):
-                        if Data[chromosome]["quality"][i] < args.Q and Data[chromosome]["GC"][i] > 0:
+                        if Data[chromosome]["quality"][i] < args.Q and Data[chromosome]["GC"][i] > 0 and Data[chromosome]["ratio"][i] > 0:
                             failed_bins += 1
-                    if failed_bins/float(variant["end"]-variant["start"]) > 0.2:
+                    if failed_bins/float(variant["end"]-variant["start"]) > 0.9:
                         firstrow= firstrow.replace("PASS","FAIL")
                     info_field +=";QUAL={}".format( failed_bins/float(variant["end"]-variant["start"]) )
                     
@@ -348,7 +358,7 @@ def main(Data,GC_hist,args):
                 for i in range(variant["start"],variant["end"]):
                     if Data[chromosome]["GC"][i] < 0:
                         failed_bins += 1
-                if failed_bins/float(variant["end"]-variant["start"]) > 0.2:
+                if failed_bins/float(variant["end"]-variant["start"]) > 0.9:
                     firstrow= firstrow.replace("PASS","FILTER")
                 info_field +=";FAILED_BINS={}".format( failed_bins/float(variant["end"]-variant["start"]) )                
                 

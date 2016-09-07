@@ -7,11 +7,12 @@ import annotate
 import call
 import time
 import sys
-
+import hist
 parser = argparse.ArgumentParser("AMYCNE a copy number estimation toolkit",add_help=False)
 parser.add_argument('--genotype' , action="store_true" ,help="compute the copy number in selected regions")
 parser.add_argument('--annotate' , action="store_true" ,help="add copy number estimates to structural variant VCF entries")
 parser.add_argument('--call' , action="store_true" ,help="perform CNV calling")
+parser.add_argument('--hist' , action="store_true" ,help="compute the coverage across each chromosome, return a tab file descri bing the average coverage, as well as average coverage per contig")
 args, unknown = parser.parse_known_args()
 
 
@@ -111,6 +112,39 @@ elif args.call:
             GC_hist=common.gc_hist(Data,args.c_cutoff,args.s_cutoff,args.refQ)
             call.main(Data,GC_hist,args)
     else:
-        print("error: use --coverage or --folder to set the coverage input file(s), type --help for more info")           
+        print("error: use --coverage or --folder to set the coverage input file(s), type --help for more info")
+
+elif args.hist:
+    parser = argparse.ArgumentParser("""AMYCNE-genotype:compute the copy number of selected regions based on the region input file""")
+    parser.add_argument('--hist' , action="store_true" ,help="compute the coverage across each chromosome, return a tab file descri bing the average coverage, as well as average coverage per contig")
+    parser.add_argument('--coverage' , type=str, help="the tab file containing coverage tab files")
+    parser.add_argument('--folder' , type=str,help="use every .tab file in the folder as coverage file")
+    parser.add_argument('--gc' , type=str,required= True, help="the tab file containing gc content")
+    args = parser.parse_args()
+    
+    Data = common.gc_tab(args.gc)
+    header= "sample_ID\tAverage"
+    for chromosome in sorted(Data["chromosomes"]):
+        if not "Un_" in chromosome and not "random" in chromosome and not "hap" in chromosome and not "M" in chromosome:
+            header+= "\t" + chromosome
+    print header
+    
+    if args.coverage:
+        #compute a gc content histogram
+        Data=common.coverage_tab(args.coverage,Data)
+        hist.main(Data)
+    elif(args.folder):
+        tab_folder = glob.glob(os.path.join(args.folder,"*.tab"));
+        for tab in tab_folder:
+            #compute a gc content histogram
+            args.coverage=tab
+            Data=common.coverage_tab(args.coverage,Data)
+            hist.main(Data,args)
+    else:
+        print("coverage data is required, use either the coverage or folder option to select the input. read the manual for more info on how to generate coverage files")
+ 
+        
 else:
-    parser.print_help()
+   parser.print_help()
+
+    

@@ -7,3 +7,9 @@ The AMY_genotyping folder contains instructions on how to compute the copy numbe
 The delly filtering folder contain instructions on how to filter the delly deletion vcf using copy number information of the annotation module.
 
 Lastly, the NA12878_calling folder contains scripts for variant calling on the NA12878 sample, and how to compare these results to CNVnator calls.
+
+The NA12878 sample was used to benchmark AMYCNE. the NA12878 bam file may be downloaded through this link
+
+ ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/NA12878/NIST_NA12878_HG001_HiSeq_300x/ 
+
+There is also a tab file available in the coverage folder inside the delly_filtering folder

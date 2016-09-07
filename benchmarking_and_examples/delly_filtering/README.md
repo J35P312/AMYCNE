@@ -1,5 +1,5 @@
-This folder contains instructions on how to annotate a vcf file using AMYCNE. And gives an example on how to use this annotation as a CNV filter.
-First download Delly and the NA12878 bam, and call deletions using delly. In the AMYCNE article, delly v0.7.2 was run using default settings:
+This folder contains instructions on how to annotate a vcf file using AMYCNE. And gives an example on how to use this annotation as a CNV filter. The coverage and gc tab file folders
+contains compressed tab files for gc and coverage. Uncompress these, or download Delly and the NA12878 bam, and call deletions using delly. In the AMYCNE article, delly v0.7.2 was run using default settings:
 
 delly -t DEL -o $3.DEL.vcf -g $2 $1
 

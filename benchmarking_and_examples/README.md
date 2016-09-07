@@ -12,4 +12,4 @@ The NA12878 sample was used to benchmark AMYCNE. the NA12878 bam file may be dow
 
  ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/NA12878/NIST_NA12878_HG001_HiSeq_300x/ 
 
-There is also a tab file available in the coverage folder inside the delly_filtering folder
+There is also a tab file available in the coverage folder inside the delly_filtering folder, uncompress this file to test the AMYCNE.

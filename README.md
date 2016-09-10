@@ -17,14 +17,14 @@ Each module requires a coverage file and a gc content file, having the same bin 
         python AMYCNE.py --genotype
         
       Use the following command to genotype a specified region(chr1:100-10000):
-      python AMYCNE.py --genotype --GC GC_tab_file.tab --coverage coverage_tab_file.tab --R chr1:100-10000
+      python AMYCNE.py --genotype --gc GC_tab_file.tab --coverage coverage_tab_file.tab --R chr1:100-10000
       
       To genotype all coverage files in a folder type the followin command:
-      python AMYCNE.py --genotype --GC GC_tab_file.tab --folder /path/to/folder --R chr1:100-10000
+      python AMYCNE.py --genotype --gc GC_tab_file.tab --folder /path/to/folder --R chr1:100-10000
       
       Multiple regions could be genotyped using a region text file instead of the --R flag:
-      python AMYCNE.py --genotype --GC GC_tab_file.tab --coverage coverage_tab_file.tab --region region.txt
-      python AMYCNE.py --genotype --GC GC_tab_file.tab --folder /path/to/folder --region region.txt
+      python AMYCNE.py --genotype --gc GC_tab_file.tab --coverage coverage_tab_file.tab --region region.txt
+      python AMYCNE.py --genotype --gc GC_tab_file.tab --folder /path/to/folder --region region.txt
       
     The region file consists of operations. Each line within the region text file describes one operation. THe supported operations are sum(sum) and average(avg). The operations are written in the following format:
     

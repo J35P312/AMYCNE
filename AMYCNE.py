@@ -8,11 +8,16 @@ import call
 import time
 import sys
 import hist
+
+import numpy
+import scipy
+
 parser = argparse.ArgumentParser("AMYCNE a copy number estimation toolkit",add_help=False)
 parser.add_argument('--genotype' , action="store_true" ,help="compute the copy number in selected regions")
 parser.add_argument('--annotate' , action="store_true" ,help="add copy number estimates to structural variant VCF entries")
 parser.add_argument('--call' , action="store_true" ,help="perform CNV calling")
 parser.add_argument('--hist' , action="store_true" ,help="compute the coverage across each chromosome, return a tab file descri bing the average coverage, as well as average coverage per contig")
+parser.add_argument('--filt' , action="store_true" ,help="filters the input coverage tab file, prints the filtered and gc corrected version to stdout")
 args, unknown = parser.parse_known_args()
 
 
@@ -142,9 +147,42 @@ elif args.hist:
             hist.main(Data,args)
     else:
         print("coverage data is required, use either the coverage or folder option to select the input. read the manual for more info on how to generate coverage files")
- 
-        
+
+if args.filt:
+    parser = argparse.ArgumentParser("""AMYCNE-filter: filter the coverage tab file, prints it to stdout for later use""")
+    parser.add_argument('--gc' , type=str,required= True, help="the tab file containing gc content")
+    parser.add_argument('--coverage' , type=str,required= True,default=None, help="the tab file containing coverage")
+    parser.add_argument('--c_cutoff' , type=int,default=100,help="bins having coverage higher than the cut off value are excluded from the ref calculations")
+    parser.add_argument('--s_cutoff' , type=int,default=50,help="bins that have less than the s_cutoff value similar bins are discarded from copy nmber esitmation")
+    parser.add_argument('--filter' , type=int,default=2000,help="size of the filters, default = 2000")
+    parser.add_argument('--refQ' , type=int,default=30,help="Minimum average mapping quality of the bins used for constructing the reference = 30")
+    parser.add_argument('--Q' , type=int,default=10,help="Minimum average mapping quality of the bins used for copy number estimation default = 10")
+    parser.add_argument('--filt' , action="store_true" ,help="perform CNV calling")
+
+    args = parser.parse_args()
+
+    Data = common.gc_tab(args.gc)
+    Data=common.coverage_tab(args.coverage,Data)
+
+    for chromosome in Data["chromosomes"]: 
+        if Data[chromosome]["quality"]:
+            print("#chromosome\tstart\tend\tcoverage\tQ")
+        else:
+            print("#chromosome\tstart\tend\tcoverage")
+        break
+
+    if args.filter % 2 == 0:
+        args.filter += 1
+    for chromosome in Data["chromosomes"]:
+        median_filtered=scipy.signal.medfilt(Data[chromosome]["coverage"],args.filter)
+        wiener_filter = scipy.signal.wiener(median_filtered,args.filter)
+        for i in range(0,len(wiener_filter)):
+            if Data[chromosome]["quality"]:
+                print("{}\t{}\t{}\t{}\t{}".format(chromosome,i*Data["bin_size"],(i+1)*Data["bin_size"],round(wiener_filter[i],1),Data[chromosome]["quality"][i]))
+            else:    
+                print("{}\t{}\t{}\t{}".format(chromosome,i*Data["bin_size"],(i+1)*Data["bin_size"],round(wiener_filter[i],1) ))
 else:
    parser.print_help()
 
-    
+
+

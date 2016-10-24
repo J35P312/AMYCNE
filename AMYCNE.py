@@ -62,7 +62,8 @@ if args.genotype:
 elif args.annotate:
     parser = argparse.ArgumentParser("""AMYCNE-annotate:annotate the intrachromosomal variants of a structural variation vcf""")
     parser.add_argument('--annotate' , action="store_true" ,help="compute the copy number in selected regions")
-    parser.add_argument('--vcf' , type=str, required=True,help="a structural variation vcf file")
+    parser.add_argument('--vcf' , type=str,help="a structural variation vcf file")
+    parser.add_argument('--bed' , type=str,help="a bed file containing genomic regions")
     parser.add_argument('--gc' , type=str,required= True, help="the tab file containing gc content")
     parser.add_argument('--coverage' , type=str,required= True, help="the tab file containing coverage")
     parser.add_argument('--refQ' , type=int,default=30,help="Minimum average mapping quality of the bins used for constructing the reference = 30")
@@ -148,7 +149,7 @@ elif args.hist:
     else:
         print("coverage data is required, use either the coverage or folder option to select the input. read the manual for more info on how to generate coverage files")
 
-if args.filt:
+elif args.filt:
     parser = argparse.ArgumentParser("""AMYCNE-filter: filter the coverage tab file, prints it to stdout for later use""")
     parser.add_argument('--gc' , type=str,required= True, help="the tab file containing gc content")
     parser.add_argument('--coverage' , type=str,required= True,default=None, help="the tab file containing coverage")

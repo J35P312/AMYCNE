@@ -8,15 +8,18 @@ import call
 import time
 import sys
 import hist
+import count
 
 import numpy
 import scipy
+
 
 parser = argparse.ArgumentParser("AMYCNE a copy number estimation toolkit",add_help=False)
 parser.add_argument('--genotype' , action="store_true" ,help="compute the copy number in selected regions")
 parser.add_argument('--annotate' , action="store_true" ,help="add copy number estimates to structural variant VCF entries")
 parser.add_argument('--call' , action="store_true" ,help="perform CNV calling")
-parser.add_argument('--hist' , action="store_true" ,help="compute the coverage across each chromosome, return a tab file descri bing the average coverage, as well as average coverage per contig")
+parser.add_argument('--hist' , action="store_true" ,help="compute the coverage across each chromosome, return a tab file describing the average coverage, as well as average coverage per contig")
+parser.add_argument('--count' , action="store_true" ,help="estimate the copy number of each chromosome")
 parser.add_argument('--filt' , action="store_true" ,help="filters the input coverage tab file, prints the filtered and gc corrected version to stdout")
 args, unknown = parser.parse_known_args()
 
@@ -138,7 +141,7 @@ elif args.hist:
     if args.coverage:
         #compute a gc content histogram
         Data=common.coverage_tab(args.coverage,Data)
-        hist.main(Data)
+        hist.main(Data,args)
     elif(args.folder):
         tab_folder = glob.glob(os.path.join(args.folder,"*.tab"));
         for tab in tab_folder:
@@ -148,6 +151,26 @@ elif args.hist:
             hist.main(Data,args)
     else:
         print("coverage data is required, use either the coverage or folder option to select the input. read the manual for more info on how to generate coverage files")
+
+elif args.count:
+    parser = argparse.ArgumentParser("""AMYCNE-genotype:compute the copy number of selected regions based on the region input file""")
+    parser.add_argument('--count' , action="store_true" ,help="compute the coverage across each chromosome, return a tab file descri bing the average coverage, as well as average coverage per contig")
+    parser.add_argument('--coverage' , required=True,type=str, help="the tab file containing coverage tab files")
+    parser.add_argument('--ploidy' , type=int,default = 2,help="the ploidy of the organism")
+    parser.add_argument('--p' , type=float,default=0.000001,help="p value limit to call chromosomal abberation")
+    parser.add_argument('--gc' , type=str,required= True, help="the tab file containing gc content")
+    parser.add_argument('--c_cutoff' , type=int,default=200,help="bins having coverage higher than the cut off value are excluded from the ref calculations")
+    parser.add_argument('--s_cutoff' , type=int,default=50,help="bins that have less than the s_cutoff value similar bins are discarded from copy nmber esitmation")
+    parser.add_argument('--refQ' , type=int,default=60,help="Minimum average mapping quality of the bins used for constructing the reference = 40")
+    parser.add_argument('--Q' , type=int,default=60,help="Minimum average mapping quality of the bins used for copy number estimation default = 40")
+        
+    args = parser.parse_args()
+    
+    Data = common.gc_tab(args.gc)
+    #compute a gc content histogram
+    Data=common.coverage_tab(args.coverage,Data)
+    GC_hist=common.gc_hist(Data,args.c_cutoff,args.s_cutoff,args.refQ)
+    count.main(Data,GC_hist,args)
 
 elif args.filt:
     parser = argparse.ArgumentParser("""AMYCNE-filter: filter the coverage tab file, prints it to stdout for later use""")

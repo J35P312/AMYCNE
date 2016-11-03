@@ -6,9 +6,17 @@ def main(Data,args):
     total_length=0
     for chromosome in Data["chromosomes"]:
         if not "Un_" in chromosome and not "random" in chromosome and not "hap" in chromosome and not "M" in chromosome:
-            average_coverage[chromosome]=numpy.average(Data[chromosome]["coverage"])
-            pooled_avg += average_coverage[chromosome]*len(Data[chromosome]["coverage"])
-            total_length += len(Data[chromosome]["coverage"])
+            total_cov=0
+            bins=0
+            for bin in Data[chromosome]["coverage"]:
+                if bin >= 0:
+                    total_cov += bin
+                    bins += 1
+                    
+            total_length += bins 
+            average_coverage[chromosome]=total_cov/bins
+            pooled_avg += total_cov
+            
     pooled_avg = pooled_avg/total_length
     sample=args.coverage.replace(".tab","")
     sample=sample.split("/")[-1]

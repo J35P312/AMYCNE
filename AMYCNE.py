@@ -8,7 +8,7 @@ import call
 import time
 import sys
 import hist
-import count
+#import count
 
 import numpy
 import scipy
@@ -170,7 +170,7 @@ elif args.count:
     #compute a gc content histogram
     Data=common.coverage_tab(args.coverage,Data)
     GC_hist=common.gc_hist(Data,args.c_cutoff,args.s_cutoff,args.refQ)
-    count.main(Data,GC_hist,args)
+    #count.main(Data,GC_hist,args)
 
 elif args.filt:
     parser = argparse.ArgumentParser("""AMYCNE-filter: filter the coverage tab file, prints it to stdout for later use""")

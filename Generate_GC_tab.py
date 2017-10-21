@@ -54,8 +54,8 @@ del split_reference[0]
 #store the reference as a dictionary
 for chromosome in split_reference:
     content=chromosome.split("\n",1)
-    reference[content[0]]=content[1].replace("\n","")
-    chromosomes.append(content[0])
+    reference[content[0].strip().split()[0]]=content[1].replace("\n","")
+    chromosomes.append(content[0].strip().split()[0])
         
 #calculate the coverage of each bin
 for chromosome in chromosomes:

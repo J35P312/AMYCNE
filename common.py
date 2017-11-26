@@ -23,6 +23,11 @@ def coverage_tab(file,data):
                 data[content[0]]["coverage"].append(content[3])
                 if len(content) == 5:
                     data[content[0]]["quality"].append(float(content[4]))
+
+    for chromosome in data["chromosomes"]:
+        data[chromosome]["coverage"]=numpy.array(data[chromosome]["coverage"])
+        data[chromosome]["quality"]=numpy.array(data[chromosome]["quality"])
+
     return data
 
 
@@ -46,6 +51,9 @@ def gc_tab(file):
                 data[content[0]]["GC"] =[]
            
             data[content[0]]["GC"].append(content[3])
+
+    for chromosome in data["chromosomes"]:
+        data[chromosome]["GC"]=numpy.array(data[chromosome]["GC"])
 
     return data
 
@@ -75,7 +83,7 @@ def gc_hist(data,coverage_cutoff,size_cutoff,refQ):
     for gc in gc_dictionary:
         hist[gc]=[-1,-1]
         if len(gc_dictionary[gc]) > size_cutoff:
-            bin_coverage= sum(gc_dictionary[gc])/len(gc_dictionary[gc])
+            bin_coverage= numpy.median(gc_dictionary[gc])
             if bin_coverage < coverage_cutoff:
                 hist[gc]=[bin_coverage,len(gc_dictionary[gc])]
         #print(str(gc) + " " + str(hist[gc])+ " " + str(len(gc_dictionary[gc])))

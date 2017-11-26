@@ -1,4 +1,5 @@
 import argparse
+import gzip
                
 parser = argparse.ArgumentParser("""Prints tab separated GC content in windows of user set size""")
 parser.add_argument('--fa' , type=str, required=True,help="the fasta file")
@@ -44,9 +45,12 @@ def calculate_complexity(section,k):
 #read the fasta file
 reference={}
 chromosomes=[]
-with open(args.fa, 'r+') as f:
-    sequence=f.read()
-
+if not args.fa.endswith(".gz"):
+    with open(args.fa, 'r+') as f:
+        sequence=f.read()
+else:
+    with gzip.open(args.fa, 'r+') as f:
+        sequence=f.read()
 
 split_reference=sequence.split(">")
 del sequence

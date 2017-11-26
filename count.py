@@ -55,7 +55,7 @@ def main(Data,GC_hist,args):
            else:
                 Data[chromosome]["ratio"].append(-1)
     
-    Data=filter(Data,101)
+    #Data=filter(Data,101)
     ratio_hist=call.chromosome_hist(Data,args.Q)
     chrom_mean=0
     chrom_std=0 

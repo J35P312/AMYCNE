@@ -74,11 +74,17 @@ def chromosome_hist(Data,Q):
         bins=[]
         cov=[]
         for i in range(0,len(Data[chromosome]["ratio"])):
-            if Data[chromosome]["ratio"][i] > 0 and Data[chromosome]["quality"][i] > Q and Data[chromosome]["GC"][i] > 0:
-                bins.append(Data[chromosome]["ratio"][i])
-                cov.append(Data[chromosome]["coverage"][i])
+            if len(Data[chromosome]["quality"]):
+                if Data[chromosome]["ratio"][i] > 0 and Data[chromosome]["quality"][i] > Q and Data[chromosome]["GC"][i] > 0:
+                   bins.append(Data[chromosome]["ratio"][i])
+                   cov.append(Data[chromosome]["coverage"][i])
+            else:
+                if Data[chromosome]["ratio"][i] > 0 and Data[chromosome]["GC"][i] > 0:
+                   bins.append(Data[chromosome]["ratio"][i])
+                   cov.append(Data[chromosome]["coverage"][i])
+
         if len(bins) > 0:        
-            ratio_hist[chromosome]=[sum(bins)/len(bins),0,sum(cov)/len(cov),0]
+            ratio_hist[chromosome]=[numpy.median(bins),0,numpy.median(cov),0]
             n=len(bins)
             for i in range(0,len(bins)):
                 ratio_hist[chromosome][1]+=(ratio_hist[chromosome][0]-bins[i])*(ratio_hist[chromosome][0]-bins[i])/(n)

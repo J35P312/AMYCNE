@@ -74,8 +74,8 @@ def gc_hist(data,coverage_cutoff,size_cutoff,refQ):
                     gc_dictionary[ data[chromosome]["GC"][i]  ]=[]
                 
                 if data[chromosome]["coverage"][i] > 0:
-                    if data[chromosome]["quality"]:
-                        if data[chromosome]["quality"] >= refQ:
+                    if len(data[chromosome]["quality"]) != 0:
+                        if data[chromosome]["quality"][i] >= refQ:
                             gc_dictionary[ data[chromosome]["GC"][i]  ].append(data[chromosome]["coverage"][i])
                     else:
                         gc_dictionary[ data[chromosome]["GC"][i]  ].append(data[chromosome]["coverage"][i])
@@ -118,7 +118,7 @@ def regional_cn_est(Data,GC_hist,region,Q):
             bin_GC=Data[chromosome]["GC"][element]
             bin_coverage=Data[chromosome]["coverage"][element]
             Pass= True
-            if Data[chromosome]["quality"]:
+            if len(Data[chromosome]["quality"]) != 0:
                 if Data[chromosome]["quality"][element] < Q:
                     Pass = False
             

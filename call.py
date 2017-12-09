@@ -1,40 +1,67 @@
 import common
 import scipy.signal
+import scipy.stats
 import numpy
 import math
 
 #claibrate the ratio values of the sex chromosomes
 def calibrate_sex(Data):
     female=True
-    y_ratio=[]
+    y_ratio=0
     for chromosome in Data["chromosomes"]:
-        if "Y" in chromosome or "y" in chromosome:
-            for i in range(0,len(Data[chromosome]["ratio"])):
-                if not -1 == Data[chromosome]["ratio"][i]:
-                    y_ratio.append(Data[chromosome]["ratio"][i])
+        if chromosome == "Y" or "chrY" == chromosome:
+            y_ratio=numpy.median(Data[chromosome]["ratio"])
+            continue
 
-
-    if sum(y_ratio)/len(y_ratio) > 0.5:
+    if y_ratio > 0.3:
         female = False
 
     if female:
         for chromosome in Data["chromosomes"]:
-            if "Y" in chromosome or "y" in chromosome:
+            if chromosome == "Y" or "chrY" == chromosome:
                  #add one to all the ratios on the y chromosome, any coverage found will become a duplication
                 for i in range(0,len(Data[chromosome]["ratio"])):
                     if not -1 == Data[chromosome]["ratio"][i]:
                         Data[chromosome]["ratio"][i] += 1
-                
-    
     else:
         for chromosome in Data["chromosomes"]:
-            if "Y" in chromosome or "y" in chromosome or "X" in chromosome or "x" in chromosome:
+            if chromosome == "Y" or "chrY" == chromosome or "X" == chromosome or "chrX" == chromosome:
                 #multiply the ratios on the x and y chromosomes by 2
                 for i in range(0,len(Data[chromosome]["ratio"])):
                     if not Data[chromosome]["ratio"][i] == -1:
                         Data[chromosome]["ratio"][i] = 2*Data[chromosome]["ratio"][i]
     
     return(Data)
+
+def retrieve_phred(bins,ratio,percentiles):
+    pvals=[]
+    for b in bins:
+        percentile=0
+        for val in percentiles:
+
+            if val > b:
+                break
+            percentile+=0.001
+
+        if ratio > 1:
+            percentile=1-percentile
+            if percentile < 0:
+                percentile=0
+
+        if not percentile:
+            percentile=0.0001
+        pvals.append(percentile)
+
+    p= scipy.stats.combine_pvalues(pvals)[1]
+    p=p*len(pvals)
+    if not p or p < 0:
+        return(1000)
+    phred=int(round(-math.log(p)))
+    if phred > 1000:
+        return 1000
+
+    return(phred)
+
 
 #divide all bins into segments, these segments are dup,del,normal, or filtered
 def segmentation(Data,minimum_bin):
@@ -52,20 +79,28 @@ def segmentation(Data,minimum_bin):
                 start_pos=i
                 end_pos = i+1
                 past_variant_type=variant_type
-                
             elif past_variant_type == variant_type:
                 end_pos +=1
             else:
                 if not chromosome in variants:
                     variants[chromosome] = []
-                    
-                variants[chromosome].append({"start":start_pos,"end":end_pos,"type":past_variant_type,"ratio":sum(Data[chromosome]["ratio"][start_pos:i])/float(end_pos-start_pos),"bins":end_pos-start_pos})
+                ratio_list=Data[chromosome]["ratio"][start_pos:end_pos+1]
+                ratio_list=ratio_list[numpy.where(ratio_list >= 0)]
+
+                variants[chromosome].append({"start":start_pos,"end":end_pos,"type":past_variant_type,"ratio":numpy.median(ratio_list),"bins":end_pos-start_pos,"ratio_list":list(ratio_list)})
                 
+                ratio_list=[]
                 past_variant_type=variant_type       
                 start_pos=i
                 end_pos=start_pos+1
                 
     return(variants)
+
+def mad(arr):
+    #copied from:https://stackoverflow.com/questions/8930370/where-can-i-find-mad-mean-absolute-deviation-in-scipy
+    arr = numpy.ma.array(arr).compressed() # should be faster to not use masked arrays.
+    med = numpy.median(arr)
+    return numpy.median(numpy.abs(arr - med))
 
 def chromosome_hist(Data,Q):
     ratio_hist={}
@@ -75,11 +110,12 @@ def chromosome_hist(Data,Q):
         cov=[]
         for i in range(0,len(Data[chromosome]["ratio"])):
             if len(Data[chromosome]["quality"]):
-                if Data[chromosome]["ratio"][i] > 0 and Data[chromosome]["quality"][i] > Q and Data[chromosome]["GC"][i] > 0:
+                #if Data[chromosome]["ratio"][i] > 0 and Data[chromosome]["quality"][i] > Q and Data[chromosome]["GC"][i] > 0:
+                if Data[chromosome]["ratio"][i] >= 0 and Data[chromosome]["GC"][i] > 0:
                    bins.append(Data[chromosome]["ratio"][i])
                    cov.append(Data[chromosome]["coverage"][i])
             else:
-                if Data[chromosome]["ratio"][i] > 0 and Data[chromosome]["GC"][i] > 0:
+                if Data[chromosome]["ratio"][i] >= 0 and Data[chromosome]["GC"][i] > 0:
                    bins.append(Data[chromosome]["ratio"][i])
                    cov.append(Data[chromosome]["coverage"][i])
 
@@ -90,8 +126,8 @@ def chromosome_hist(Data,Q):
                 ratio_hist[chromosome][1]+=(ratio_hist[chromosome][0]-bins[i])*(ratio_hist[chromosome][0]-bins[i])/(n)
                 ratio_hist[chromosome][3]+=(ratio_hist[chromosome][2]-cov[i])*(ratio_hist[chromosome][2]-cov[i])/(n)
             
-            ratio_hist[chromosome][1]=math.sqrt(ratio_hist[chromosome][1])
-            ratio_hist[chromosome][3]=math.sqrt(ratio_hist[chromosome][3])
+            ratio_hist[chromosome][1]=mad(bins)
+            ratio_hist[chromosome][3]=mad(cov)
         else:
             ratio_hist[chromosome]=[0,0,0,0]
     return(ratio_hist)
@@ -110,7 +146,6 @@ def merge(variants,min_bins):
             if past_variant_type == -1:
                 past_variant_type= variant_type
                 merged_variant.append( i )
-
             elif past_variant_type == variant_type:
                 merged_variant.append( i )
             
@@ -122,24 +157,21 @@ def merge(variants,min_bins):
                 variant["start"]=variants[chromosome][ merged_variant[0] ]["start"]
                 variant["end"]=variants[chromosome][merged_variant[-1]]["end"]
                 variant["type"]=past_variant_type
-                #compute the number of bins within this variant
-                variant["bins"]=0
-                for j in merged_variant:
-                    variant["bins"] += variants[chromosome][j]["end"]-variants[chromosome][j]["start"]
-                #compute the mean ratio of the variant
-                variant["ratio"]= 0
-                for j in merged_variant:
-                    variant["ratio"] += variants[chromosome][j]["ratio"]*variants[chromosome][j]["bins"]
-                variant["ratio"]=variant["ratio"]/variant["bins"]
+                bins=[]
+                for var in merged_variant:
+                    bins += variants[chromosome][var]["ratio_list"]
+                variant["ratio_list"]=bins
+                variant["bins"]=len(variant["ratio_list"])
+                variant["ratio"]=numpy.median(variant["ratio_list"])
                 merged_variants[chromosome].append(variant)
                 merged_variant=[i]
+
                 past_variant_type= variant_type
-    #deletions or duplications separated by small filtered regions or neutral regions are merged
     return(merged_variants)
 
 def merge_similar(variants):
     merged_variants={}
-    #segments that are separated by nothing will be merged
+    #closely located segments are merged
     for chromosome in variants:
         i=0
         index_list=[]
@@ -149,16 +181,14 @@ def merge_similar(variants):
                 merged_variant=variants[chromosome][i]
                 index_list.append(i)
                 i += 1
-                
                 continue
                 
             variant_span= variants[chromosome][i]["end"] - merged_variant["start"]
             variant_dist= variants[chromosome][i]["start"] - merged_variant["end"]
-            sizes= [variants[chromosome][i]["end"]-variants[chromosome][i]["start"], merged_variant["end"]-merged_variant["start"]]
-            size_ratio=max(sizes)/float( min(sizes))
             
-            if (variants[chromosome][i]["type"] == merged_variant["type"]) and  0.1 >= variant_dist/float(variant_span) and variant_dist < 50000 and size_ratio > 0.3:
+            if (variants[chromosome][i]["type"] == merged_variant["type"]) and  0.1 >= variant_dist/float(variant_span) and variant_dist < 20000:
                  merged_variant["end"]=variants[chromosome][i]["end"]
+                 merged_variant["ratio_list"]+=variants[chromosome][i]["ratio_list"]
                  index_list.append(i)
             else:
                 if not chromosome in merged_variants:
@@ -167,16 +197,9 @@ def merge_similar(variants):
                 variant["start"]=merged_variant["start"]
                 variant["end"]=merged_variant["end"]
                 variant["type"]=merged_variant["type"]
-                #compute the number of bins within this variant
-                variant["bins"]=0
-                for j in index_list:
-                    variant["bins"] += variants[chromosome][j]["bins"]
-                #compute the mean ratio of the variant
-                variant["ratio"]= 0
-                for j in index_list:
-                    variant["ratio"] += variants[chromosome][j]["ratio"]*variants[chromosome][j]["bins"]
-                variant["ratio"]=variant["ratio"]/variant["bins"]
-                        
+                variant["ratio_list"]=merged_variant["ratio_list"]
+                variant["bins"]=len(variant["ratio_list"])
+                variant["ratio"]=numpy.median(variant["ratio_list"])
                 merged_variants[chromosome].append(variant)
                 merged_variant=variants[chromosome][i]
                 index_list=[i]
@@ -186,7 +209,8 @@ def merge_similar(variants):
     
 #filter the data
 def filter(Data,minimum_bin):
-
+    if minimum_bin % 2 == 0:
+        minimum_bin += 1
 	
     start=-1
     for chromosome in Data["chromosomes"]:
@@ -197,24 +221,20 @@ def filter(Data,minimum_bin):
             
             if start !=-1 and Data[chromosome]["ratio"][i] != -1:	
                 filtered_list.append(Data[chromosome]["ratio"][i])
-                
-                         
-                
+                                
             if start !=-1 and Data[chromosome]["ratio"][i] == -1:
-                if minimum_bin % 2 == 0:
-                    minimum_bin += 1
-                
-                
-                small=scipy.signal.medfilt(filtered_list,minimum_bin)
-                medium = scipy.signal.medfilt(small,minimum_bin*2+1)
-                medium = scipy.signal.wiener(medium,minimum_bin*2+1)
-                #Data[chromosome]["ratio"][start:start+len(filtered_list)]=scipy.signal.medfilt(medium,minimum_bin*3)
-                Data[chromosome]["ratio"][start:start+len(filtered_list)]=medium
+                if len(filtered_list) < minimum_bin:
+                    remove=numpy.zeros(len(filtered_list))-1
+                    Data[chromosome]["ratio"][start:start+len(filtered_list)]=remove
+                else:
+                    small=scipy.signal.medfilt(filtered_list,minimum_bin)
+                    #Data[chromosome]["ratio"][start:start+len(filtered_list)]=scipy.signal.wiener(small,minimum_bin)
+                    Data[chromosome]["ratio"][start:start+len(filtered_list)]=small
                 filtered_list=[]
                 start=-1
                 
         if start != -1:
-            Data[chromosome]["ratio"][start:start+len(filtered_list)]=scipy.signal.medfilt(filtered_list)
+            Data[chromosome]["ratio"][start:start+len(filtered_list)]=scipy.signal.medfilt(filtered_list,minimum_bin)
             filtered_list=[]
             start=-1 
                 
@@ -224,8 +244,11 @@ def main(Data,GC_hist,args):
     #compute the scaled coverage
     print("finished reading the coverage data")
     bin_size=Data["bin_size"]
-    args.min_bins=int(args.min_var/bin_size)
-    args.min_filt=int(args.filter/bin_size)
+    args.min_bins=int(args.min_var/float(bin_size))
+    if not args.min_bins:
+        print "Error: the minimum variant size is smaller than the bin sie of the input data!"
+        quit()
+			
     for chromosome in Data["chromosomes"]:
         Data[chromosome]["ratio"]=[]
         for i in range(0,len(Data[chromosome]["coverage"])):
@@ -237,69 +260,46 @@ def main(Data,GC_hist,args):
     Data=calibrate_sex(Data)
     #filter the bins
     print("applying filters")
-    Data=filter(Data,args.min_filt)
+    Data=filter(Data,int(args.filter/float(bin_size)))
     print("computing coverage histogram")
     ratio_hist=chromosome_hist(Data,args.Q)
     print("Intrachromosomal scaling")
+
+    hist=[]
     for chromosome in Data["chromosomes"]:
-        if ratio_hist[chromosome][0] == 0:
+        if ratio_hist[chromosome][0] < 0.2:
             continue
             
         for i in range(0,len(Data[chromosome]["ratio"])):
+            if Data[chromosome]["ratio"][i] < 0:
+                continue
             Data[chromosome]["ratio"][i]=Data[chromosome]["ratio"][i]/ratio_hist[chromosome][0]
-            
-    deleted_bins={}
-    duplicated_bins={}
+            if not i % 100 and not numpy.isnan(Data[chromosome]["ratio"][i]):
+                hist.append(Data[chromosome]["ratio"][i])
+    hist=numpy.array(hist)
+
+    percentiles=numpy.percentile(hist,numpy.array(range(0,1001))/10.0)
+    print percentiles
     print("segmentation")
     for chromosome in Data["chromosomes"]:
-        Data[chromosome]["var"]=[];
-        for i in range(0,len(Data[chromosome]["ratio"])):
-            if Data[chromosome]["coverage"][i] >= 0 and Data[chromosome]["ratio"][i] >= 0 :
-                #print "{}\t{}\t{}\t{}".format(chromosome,i*bin_size,(i+1)*bin_size,Data[chromosome]["ratio"][i]*GC_hist[Data[chromosome]["GC"][i]][0])
-                if Data[chromosome]["ratio"][i] <= 0.75:
-                    Data[chromosome]["var"].append("DEL")
-                elif Data[chromosome]["ratio"][i] >= 1.25:
-                    Data[chromosome]["var"].append("DUP")
-                else:
-                    Data[chromosome]["var"].append("NEUTRAL")
-                    
-            else:
-                 Data[chromosome]["var"].append("FILT")
-                 #print "{}\t{}\t{}\t{}".format(chromosome,i*bin_size,(i+1)*bin_size,-1)
-    
-    variants=segmentation(Data,args.min_bins)
-    
 
-    #merge segments separated by weak signal variants
-    #for chromosome in variants:
-    #    i=0
-    #    while i+2 < len(variants[chromosome]):
-    #        merge_var= False
-    #        if variants[chromosome][i]["type"] == variants[chromosome][i+2]["type"] and variants[chromosome][i+1]["type"] =="NEUTRAL":
-    #            if variants[chromosome][i]["type"] == "DEL":
-    #                if(variants[chromosome][i+1]["ratio"] <= 0.8) :
-    #                    merge_var = True
-    #            
-    #            elif variants[chromosome][i]["type"] == "DUP":
-    #                if(variants[chromosome][i+1]["ratio"] >= 1.2) :
-    #                    merge_var = True
-    #              
-    #            
-    #            if merge_var:
-    #                variants[chromosome][i]["end"]=variants[chromosome][i+2]["end"]
-    #                nbins=sum([variants[chromosome][i]["bins"],variants[chromosome][i+2]["bins"],variants[chromosome][i+1]["bins"]])
-    #                rp1=variants[chromosome][i]["ratio"]*variants[chromosome][i]["bins"]
-    #                rp2=variants[chromosome][i+1]["ratio"]*variants[chromosome][i+1]["bins"]
-    #                rp3=variants[chromosome][i+2]["ratio"]*variants[chromosome][i+2]["bins"]
-    #                variants[chromosome][i]["ratio"] = sum([rp1,rp2,rp3])/nbins
-    #                variants[chromosome][i]["bins"] = nbins
-    #                del variants[chromosome][i+2]
-    #                del variants[chromosome][i+1]
-    #                i += -1
-    #                
-    #                
-    #        i += 1 
-    
+        Data[chromosome]["var"]=numpy.repeat( "NEUTRAL",len(Data[chromosome]["ratio"]) );
+        Data[chromosome]["ratio"]=numpy.array(Data[chromosome]["ratio"])
+        for i in range(0,len(Data[chromosome]["ratio"])-args.min_bins):
+            copy_number="NEUTRAL"          
+
+            if Data[chromosome]["ratio"][i] < 0:
+                copy_number="FILT"
+            elif Data[chromosome]["ratio"][i] <= 1-0.7/args.plody and abs(1-Data[chromosome]["ratio"][i]) > 4*ratio_hist[chromosome][1]:
+                copy_number="DEL"
+            elif Data[chromosome]["ratio"][i] >= 1+0.7/args.plody and abs(1-Data[chromosome]["ratio"][i]) > 4*ratio_hist[chromosome][1]:
+                copy_number="DUP"
+
+            for j in range(i,i+args.min_bins):
+                Data[chromosome]["var"][j]=copy_number	
+            
+    print("merging")
+    variants=segmentation(Data,args.min_bins)
     
     size_filtered_variants={}   
     for chromosome in variants:
@@ -314,7 +314,7 @@ def main(Data,GC_hist,args):
     CNV_filtered={}
     for chromosome in variants:
         for variant in variants[chromosome]:
-            if variant["type"] == "DUP" or variant["type"] == "DEL" or 1 == 2:
+            if variant["type"] == "DUP" or variant["type"] == "DEL":
                 if not chromosome in CNV_filtered:
                     CNV_filtered[chromosome] = []
                 CNV_filtered[chromosome].append(variant)    
@@ -335,21 +335,18 @@ def main(Data,GC_hist,args):
     f.write("##INFO=<ID=BINS,Number=1,Type=float,Description=\"The number of bins used to call the variant\">\n")
     f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
     
-    
     id_tag=0;
     for chromosome in Data["chromosomes"]:
         if chromosome in variants:
           for variant in variants[chromosome]:
             if variant["type"] == "DUP" or variant["type"] == "DEL" or 1 == 2:
                 id_tag +=1
-                firstrow= "{}\t{}\tAMYCNE_{}\tN\t<{}>\t.\tPASS".format(chromosome,bin_size*variant["start"],id_tag,variant["type"]) 
-                info_field="END={};SVLEN={};RDR={};BINS={}".format(bin_size*variant["end"],(variant["end"]-variant["start"])*bin_size,variant["ratio"],variant["bins"] )
-                
-                CN=0
-                cn, gc, length,ref,bins,used_bins,bin_list =common.regional_cn_est( Data ,GC_hist, [chromosome,variant["start"]*bin_size,variant["end"]*bin_size],args.Q )
-                info_field += ";CN={}".format( int(round(cn*args.plody)))
-                if int(round(cn*args.plody)) == args.plody:
-                    firstrow= firstrow.replace("PASS","NOCNV")
+                filt="PASS"
+                info_field="END={};SVLEN={};RDR={};BINS={}".format(bin_size*variant["end"],(variant["end"]-variant["start"]+1)*bin_size,variant["ratio"],variant["bins"] )
+                info_field += ";CN={}".format( int(round(variant["ratio"]*args.plody)))
+
+                if int(round(variant["ratio"]*args.plody)) == args.plody:
+                    filt="NOCNV"
                     
                 if "quality" in Data[chromosome]:
                     failed_bins=0
@@ -357,30 +354,27 @@ def main(Data,GC_hist,args):
                         if Data[chromosome]["quality"][i] < args.Q and Data[chromosome]["GC"][i] > 0 and Data[chromosome]["ratio"][i] > 0:
                             failed_bins += 1
                     if failed_bins/float(variant["end"]-variant["start"]) > 0.9:
-                        firstrow= firstrow.replace("PASS","FAIL")
+                        filt="LowBinQual"
                     info_field +=";QUAL={}".format( failed_bins/float(variant["end"]-variant["start"]) )
-                    
+
+                phred=retrieve_phred(variant["ratio_list"],variant["ratio"],percentiles)
+                if(phred < args.score):
+                    filt="LowPhred"                      
+                
                 failed_bins=0
                 for i in range(variant["start"],variant["end"]):
-                    if Data[chromosome]["GC"][i] < 0:
+                    if Data[chromosome]["ratio"][i] < 0:
                         failed_bins += 1
                 if failed_bins/float(variant["end"]-variant["start"]) > 0.9:
-                    firstrow= firstrow.replace("PASS","FILTER")
+                    filt="RegionFilter"
+
                 info_field +=";FAILED_BINS={}".format( failed_bins/float(variant["end"]-variant["start"]) )                
                 
-                bins=[]
-                for i in range(variant["start"],variant["end"]):
-                    if Data[chromosome]["GC"][i] > 0 and Data[chromosome]["ratio"][i] > 0:
-                        bins.append(Data[chromosome]["ratio"][i])
-                if len(bins) > 0:
-                    mean=sum(bins)/len(bins)
-                    SEM=numpy.std(bins)/numpy.sqrt( len(bins) )
-                    ci="({},{})".format(round(mean-SEM*1.96,2),round(mean+SEM*1.96,2))
-                    info_field+=";CI={}".format(ci)
-                else:
-                    firstrow= firstrow.replace("PASS","LowQual")
-                    ci="(-inf,inf)"
-                info_field+=";CI={}".format(ci) 
-                info_field+=";CHR_ratio={};CHR_ratio_std={};CHR_coverage={};CHR_coverage_std={}".format(ratio_hist[chromosome][0],ratio_hist[chromosome][1],ratio_hist[chromosome][2],ratio_hist[chromosome][3])
+                mean=numpy.average(variant["ratio_list"])
+                SEM=numpy.std(variant["ratio_list"])/numpy.sqrt( len(variant["ratio_list"]) )
+                ci="({},{})".format(round(mean-SEM*3,2),round(mean+SEM*3,2))
+
+                firstrow = "{}\t{}\tAMYCNE_{}\tN\t<{}>\t{}\t{}".format(chromosome,bin_size*variant["start"],id_tag,variant["type"],phred,filt)
+                info_field+=";ratio={};ratioMAD={};coverage={};coverageMAD={}".format(ratio_hist[chromosome][0],ratio_hist[chromosome][1],ratio_hist[chromosome][2],ratio_hist[chromosome][3])
                 f.write("\t".join([firstrow,info_field])+"\n")
     f.close()

@@ -21,7 +21,7 @@ def coverage_tab(file,data):
                 
             if content[0] in data:
                 data[content[0]]["coverage"].append(content[3])
-                if len(content) == 5:
+                if len(content) > 4:
                     data[content[0]]["quality"].append(float(content[4]))
 
     for chromosome in data["chromosomes"]:
@@ -86,7 +86,6 @@ def gc_hist(data,coverage_cutoff,size_cutoff,refQ):
             bin_coverage= numpy.median(gc_dictionary[gc])
             if bin_coverage < coverage_cutoff:
                 hist[gc]=[bin_coverage,len(gc_dictionary[gc])]
-        #print(str(gc) + " " + str(hist[gc])+ " " + str(len(gc_dictionary[gc])))
         
     return(hist)
 
@@ -133,9 +132,9 @@ def regional_cn_est(Data,GC_hist,region,Q):
             nextpos=pos+bin_size;
 
     if used_bins > 0:
-        CN=sum(CN_list)/len(CN_list)
-        GC=sum(GC_list)/len(GC_list)
-        ref=sum(REF_list)/len(REF_list)
+        CN=numpy.median(CN_list)
+        GC=numpy.median(GC_list)
+        ref=numpy.median(REF_list)
     else:
         CN=-1
         GC=-1

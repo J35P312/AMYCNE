@@ -12,7 +12,7 @@ def main(Data,GC_hist,args):
             
             elif line[0] == "#":
                 print "##INFO=<ID={},Number=1,Type=Float,Description=\"estimated copy number\">".format("AMYCNE")
-                print "##INFO=<ID={},Number=2,Type=Float,Description=\"95% confidence interval around the estimated CN\">".format("AMYCNECI")
+                print "##INFO=<ID={},Number=2,Type=Float,Description=\"99% confidence interval around the estimated CN\">".format("AMYCNECI")
                 print "##INFO=<ID={},Number=1,Type=Float,Description=\"ratio of bins used for CN estimation\">".format("BIN_RATIO")
                 print "##INFO=<ID={},Number=1,Type=Float,Description=\"mean coverage of the reference bins\">".format("REFCOV")
                 print line.strip()
@@ -30,7 +30,7 @@ def main(Data,GC_hist,args):
                             for i in range(0,len(bin_list)):
                                 bin_list[i]=bin_list[i]*args.plody
                             SEM=(numpy.std(bin_list)/numpy.sqrt(used_bins))
-                            ci="{},{}".format(round(cn*args.plody-SEM*1.96,2),round(cn*args.plody+SEM*1.96,2))
+                            ci="{},{}".format(round(cn*args.plody-SEM*3,2),round(cn*args.plody+SEM*3,2))
                         
                         content=line.split("\t")
                         if bins == 0:
@@ -66,7 +66,7 @@ def main(Data,GC_hist,args):
                     for i in range(0,len(bin_list)):
                         bin_list[i]=bin_list[i]*args.plody
                     SEM=(numpy.std(bin_list)/numpy.sqrt(used_bins))
-                    ci="{},{}".format(round(cn*args.plody-SEM*1.96,2),round(cn*args.plody+SEM*1.96,2))
+                    ci="{},{}".format(round(cn*args.plody-SEM*3,2),round(cn*args.plody+SEM*3,2))
                         
                     content=line.split("\t")
                     if bins == 0:

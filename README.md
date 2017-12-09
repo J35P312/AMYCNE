@@ -48,9 +48,12 @@ Each module requires a coverage file and a gc content file, having the same bin 
          python AMYCNE.py --call --gc gc_content_file.tab --coverage coverage.tab > cnv.vcf
     
 #Generate Coverage Files
+
   The Generate_GC_tab.py script may used to generate gc content files:
   python Generate_GC_tab.py --fa reference.fa --size bin_size > gc_content.tab
 
   note that AMYCNE requires the same bin size for the coverage
+
 #Generate GC content file
+
 Coverage tab files may be generated using TIDDIT or sambamba, visit these tools for more information.

@@ -3,6 +3,9 @@ import scipy.signal
 import scipy.stats
 import numpy
 import math
+import sys
+import os
+
 
 #claibrate the ratio values of the sex chromosomes
 def calibrate_sex(Data):
@@ -49,7 +52,7 @@ def retrieve_phred(bins,ratio,percentiles):
                 percentile=0
 
         if not percentile:
-            percentile=0.0001
+            percentile=0.000001
         pvals.append(percentile)
 
     p= scipy.stats.combine_pvalues(pvals)[1]
@@ -253,7 +256,10 @@ def main(Data,GC_hist,args):
         Data[chromosome]["ratio"]=[]
         for i in range(0,len(Data[chromosome]["coverage"])):
            if GC_hist[Data[chromosome]["GC"][i]][0] > 0 and not Data[chromosome]["GC"][i]== -1:
-                    Data[chromosome]["ratio"].append(Data[chromosome]["coverage"][i]/GC_hist[Data[chromosome]["GC"][i]][0])
+                    if Data[chromosome]["coverage"][i]/GC_hist[Data[chromosome]["GC"][i]][0] < args.max:
+                        Data[chromosome]["ratio"].append(Data[chromosome]["coverage"][i]/GC_hist[Data[chromosome]["GC"][i]][0])
+                    else:
+                        Data[chromosome]["ratio"].append(-1)                        
            else:
                 Data[chromosome]["ratio"].append(-1)
                 
@@ -273,31 +279,66 @@ def main(Data,GC_hist,args):
         for i in range(0,len(Data[chromosome]["ratio"])):
             if Data[chromosome]["ratio"][i] < 0:
                 continue
-            Data[chromosome]["ratio"][i]=Data[chromosome]["ratio"][i]/ratio_hist[chromosome][0]
+            #Data[chromosome]["ratio"][i]=Data[chromosome]["ratio"][i]/ratio_hist[chromosome][0]
             if not i % 100 and not numpy.isnan(Data[chromosome]["ratio"][i]):
                 hist.append(Data[chromosome]["ratio"][i])
     hist=numpy.array(hist)
 
     percentiles=numpy.percentile(hist,numpy.array(range(0,1001))/10.0)
-    print percentiles
+
     print("segmentation")
     for chromosome in Data["chromosomes"]:
-
         Data[chromosome]["var"]=numpy.repeat( "NEUTRAL",len(Data[chromosome]["ratio"]) );
         Data[chromosome]["ratio"]=numpy.array(Data[chromosome]["ratio"])
-        for i in range(0,len(Data[chromosome]["ratio"])-args.min_bins):
-            copy_number="NEUTRAL"          
+        ratio_indexes=[]
+        ratios=[]
+        for i in range(1,len(Data[chromosome]["ratio"])):
+            if Data[chromosome]["ratio"][i] >= 0:
+                ratio_indexes.append(i)
+                ratios.append(Data[chromosome]["ratio"][i])
 
-            if Data[chromosome]["ratio"][i] < 0:
-                copy_number="FILT"
-            elif Data[chromosome]["ratio"][i] <= 1-0.7/args.plody and abs(1-Data[chromosome]["ratio"][i]) > 4*ratio_hist[chromosome][1]:
-                copy_number="DEL"
-            elif Data[chromosome]["ratio"][i] >= 1+0.7/args.plody and abs(1-Data[chromosome]["ratio"][i]) > 4*ratio_hist[chromosome][1]:
-                copy_number="DUP"
+        differences=[]
+        for i in range(1,args.min_bins+1):
+            tmp=[]
+            for j in range(0,len(ratios)-args.min_bins):
+                tmp.append( abs(ratios[j]-ratios[i+j]))
+            differences.append(tmp)
+        differences=numpy.array(differences)
 
-            for j in range(i,i+args.min_bins):
-                Data[chromosome]["var"][j]=copy_number	
-            
+        change_points=[]
+        #print len(ratios)
+        lim=args.plody*0.05
+        for i in range(0,len(ratios)-args.min_bins):
+            changes=differences[:,i]
+            #print "{} {}".format(lim,numpy.min(changes))
+            if numpy.min(changes) > lim:
+                #print "{} {}".format(lim,numpy.min(changes))
+                change_points.append(ratio_indexes[i])
+
+        segments=[]
+        change_points.append( len( Data[chromosome]["ratio"]-1 ) )        
+        for i in range(0,len(change_points)):
+            if i == 0:
+                segments.append(range(0,change_points[i]))
+            elif i != len(change_points)-1:
+                segments.append(range(change_points[i-1],change_points[i]))
+            else:
+                segments.append(range(change_points[i-1],len(Data[chromosome]["ratio"])))
+
+        for segment in segments:
+            segment_intensities= Data[chromosome]["ratio"][segment]
+            non_filt_bins=segment_intensities[numpy.where(segment_intensities >= 0)]
+            TYPE="NEUTRAL"
+            median=numpy.median(non_filt_bins)
+
+            if len(non_filt_bins) < args.min_bins: 
+                TYPE="FILT"
+            elif median <= 1-0.5/args.plody:
+                TYPE="DEL"
+            elif median >= 1+0.5/args.plody:
+                TYPE="DUP"             
+            Data[chromosome]["var"][segment]=TYPE
+
     print("merging")
     variants=segmentation(Data,args.min_bins)
     
@@ -319,8 +360,21 @@ def main(Data,GC_hist,args):
                     CNV_filtered[chromosome] = []
                 CNV_filtered[chromosome].append(variant)    
     
-    variants=merge_similar(CNV_filtered)
-        
+    #read the bam header
+    args.contigs={}
+    args.contig_order=[]
+    with os.popen("samtools view -H {}".format(args.bam)) as pipe:
+        for line in pipe:
+            if line[0] == "@":
+                if "SN:" in line:
+                    content=line.strip().split()
+                    chromosome=content[1].split("SN:")[-1]
+                    length=content[2].split("LN:")[-1]
+                    args.contigs[chromosome]=length
+                    args.contig_order.append(chromosome)
+                elif "\tSM:" in line and not args.sample:
+                    args.sample=line.split("\tSM:")[-1].split("\t")[0].strip()
+
     #print the variants
     print("done!")
     f=open(args.prefix,"w")
@@ -329,12 +383,29 @@ def main(Data,GC_hist,args):
     f.write("##source=AMYCNE\n")
     f.write("##ALT=<ID=DEL,Description=\"Deletion>\n")
     f.write("##ALT=<ID=DUP,Description=\"Duplication\">\n")
-    f.write("##INFO=<ID=RDR,Number=1,Type=float,Description=\"Average coverage/reference ratio\">\n")
-    f.write("##INFO=<ID=END,Number=1,Type=float,Description=\"The end position of the variant\">\n")
-    f.write("##INFO=<ID=SVLEN,Number=1,Type=float,Description=\"The length of the variant\">\n")
-    f.write("##INFO=<ID=BINS,Number=1,Type=float,Description=\"The number of bins used to call the variant\">\n")
-    f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
-    
+    f.write("##INFO=<ID=RDR,Number=1,Type=Float,Description=\"Average coverage/reference ratio\">\n")
+    f.write("##INFO=<ID=END,Number=1,Type=Integer,Description=\"The end position of the variant\">\n")
+    f.write("##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"The length of the variant\">\n")
+    f.write("##INFO=<ID=BINS,Number=1,Type=Integer,Description=\"The number of bins used to call the variant\">\n")
+    f.write("##INFO=<ID=QUAL,Number=1,Type=Float,Description=\"The fraction of low quality bins\">\n")
+    f.write("##INFO=<ID=FAILED_BINS,Number=1,Type=Float,Description=\"The fraction of filtered bins\">\n")
+    f.write("##INFO=<ID=ratio,Number=1,Type=Float,Description=\"Normalised coverage across the chromosome\">\n")
+    f.write("##INFO=<ID=ratioMAD,Number=1,Type=Float,Description=\"normalised Median absolute deviation across the chromosome\">\n")
+    f.write("##INFO=<ID=coverage,Number=1,Type=Float,Description=\"Median coverage of the chromosome\">\n")
+    f.write("##INFO=<ID=coverageMAD,Number=1,Type=Float,Description=\"Median absolute deviation of the coverage across the chromosome\">\n")
+    if args.contig_order:
+        for contig in args.contig_order:
+            f.write("##contig=<ID={},length={}>\n".format(contig,args.contigs[contig]))
+    f.write("##FILTER=<ID=LowBinQual,Description=\"More than 90% of the bins have less than {} mapping quality\">\n".format(args.Q))
+    f.write("##FILTER=<ID=RegionFilter,Description=\"More than 90% of the bins are flagged extremed GC and/or mapping quality\">\n")
+    f.write("##FILTER=<ID=LowPhred,Description=\"Low variant P value\">\n")
+    f.write("##FORMAT=<ID=CN,Number=1,Type=Integer,Description=\"Copy number genotype for imprecise events\">\n")
+    f.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
+    f.write("##AMYCNEcmd=\"{}\"\n".format(" ".join(sys.argv)))
+    if not args.sample:
+        args.sample=args.coverage.split("/")[-1].split(".")[0]
+    f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{}\n".format(args.sample))
+    format_column="GT:CN"
     id_tag=0;
     for chromosome in Data["chromosomes"]:
         if chromosome in variants:
@@ -343,11 +414,7 @@ def main(Data,GC_hist,args):
                 id_tag +=1
                 filt="PASS"
                 info_field="END={};SVLEN={};RDR={};BINS={}".format(bin_size*variant["end"],(variant["end"]-variant["start"]+1)*bin_size,variant["ratio"],variant["bins"] )
-                info_field += ";CN={}".format( int(round(variant["ratio"]*args.plody)))
-
-                if int(round(variant["ratio"]*args.plody)) == args.plody:
-                    filt="NOCNV"
-                    
+                CN=int(round(variant["ratio"]*args.plody))
                 if "quality" in Data[chromosome]:
                     failed_bins=0
                     for i in range(variant["start"],variant["end"]):
@@ -358,7 +425,7 @@ def main(Data,GC_hist,args):
                     info_field +=";QUAL={}".format( failed_bins/float(variant["end"]-variant["start"]) )
 
                 phred=retrieve_phred(variant["ratio_list"],variant["ratio"],percentiles)
-                if(phred < args.score):
+                if(phred < args.score) and not abs( (variant["ratio"]*args.plody)-round((variant["ratio"]*args.plody)) ) < 0.2:
                     filt="LowPhred"                      
                 
                 failed_bins=0
@@ -376,5 +443,11 @@ def main(Data,GC_hist,args):
 
                 firstrow = "{}\t{}\tAMYCNE_{}\tN\t<{}>\t{}\t{}".format(chromosome,bin_size*variant["start"],id_tag,variant["type"],phred,filt)
                 info_field+=";ratio={};ratioMAD={};coverage={};coverageMAD={}".format(ratio_hist[chromosome][0],ratio_hist[chromosome][1],ratio_hist[chromosome][2],ratio_hist[chromosome][3])
-                f.write("\t".join([firstrow,info_field])+"\n")
+                alt=abs((CN-args.plody))
+                if alt > args.plody:
+                    alt=args.plody
+                ref=args.plody-alt
+                genotype="/".join(["0"]*ref+["1"]*alt)
+                format_field="{}\t{}:{}".format(format_column,genotype,CN)
+                f.write("\t".join([firstrow,info_field,format_field])+"\n")
     f.close()

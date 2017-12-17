@@ -87,7 +87,7 @@ elif args.call:
     parser = argparse.ArgumentParser("""AMYCNE-call: Detect copy number variants and print them to a vcf""")
     parser.add_argument('--gc' , type=str,required= True, help="the tab file containing gc content")
 
-    parser.add_argument('--coverage' , type=str,default=None, help="the tab file containing coverage")
+    parser.add_argument('--coverage', required=True, type=str,default=None, help="the tab file containing coverage")
     parser.add_argument('--c_cutoff' , type=int,default=100,help="bins having coverage higher than the cut off value are excluded from the ref calculations")
     parser.add_argument('--s_cutoff' , type=int,default=50,help="bins that have less than the s_cutoff value similar bins are discarded from copy nmber esitmation")
     parser.add_argument('--plody' , type=int,default=2,help="The plody of the organism")
@@ -95,36 +95,25 @@ elif args.call:
     parser.add_argument('--min_var' , type=int,default=1000,help="smallest variant, given in bases, default = 1000")
     parser.add_argument('--refQ' , type=int,default=30,help="Minimum average mapping quality of the bins used for constructing the reference = 30")
     parser.add_argument('--Q' , type=int,default=30,help="Minimum average mapping quality of the bins used for copy number estimation default = 30")
-    parser.add_argument('--score' , type=int,default=20,help="Minimum log p of variants default = 20")
+    parser.add_argument('--max' , type=int,default=6,help="Maximum ratio = 6")
+    parser.add_argument('--score' , type=int,default=70,help="Minimum log p of variants default = 70")
     parser.add_argument('--call' , action="store_true" ,help="perform CNV calling")
+    parser.add_argument('--bam' , required=True,type=str ,help="the bam file (AMYCNE will only extract the header for sample and reference information)")
     parser.add_argument('--folder' , type=str,default=None, help="a folder containing coverage files, each file will be analysed")
     parser.add_argument('--prefix' , type=str, help="the output prefix of the vcf file(default= same as coverage tab file)")
-    
+    parser.add_argument('--sample' , type=str, help="the sample id(default= extracted from the SM tag of the bam field, else the  filename of the coverage file)")    
     args = parser.parse_args()
 
     #get the gc content
     
     if args.coverage:
         if not args.prefix:
-            args.prefix=args.coverage.replace(".tab",".vcf")
+            args.prefix=args.coverage.replace(".tab",".vcf").replace(".bed",".vcf")
         Data = common.gc_tab(args.gc)
         Data =common.coverage_tab(args.coverage,Data)
         #compute a gc content histogram
         GC_hist=common.gc_hist(Data,args.c_cutoff,args.s_cutoff,args.refQ)
         call.main(Data,GC_hist,args)
-    elif args.folder:
-        Data = common.gc_tab(args.gc)
-        tab_folder = glob.glob(os.path.join(args.folder,"*.tab"));
-        for tab in tab_folder:
-            
-            #compute a gc content histogram
-            args.coverage=tab
-            args.prefix=args.coverage.replace(".tab",".vcf")
-            Data=common.coverage_tab(args.coverage,Data)
-            GC_hist=common.gc_hist(Data,args.c_cutoff,args.s_cutoff,args.refQ)
-            call.main(Data,GC_hist,args)
-    else:
-        print("error: use --coverage or --folder to set the coverage input file(s), type --help for more info")
 
 elif args.hist:
     parser = argparse.ArgumentParser("""AMYCNE-genotype:compute the copy number of selected regions based on the region input file""")

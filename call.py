@@ -290,28 +290,28 @@ def main(Data,GC_hist,args):
     for chromosome in Data["chromosomes"]:
         Data[chromosome]["var"]=numpy.repeat( "NEUTRAL",len(Data[chromosome]["ratio"]) );
         Data[chromosome]["ratio"]=numpy.array(Data[chromosome]["ratio"])
+
         ratio_indexes=[]
         ratios=[]
         for i in range(1,len(Data[chromosome]["ratio"])):
             if Data[chromosome]["ratio"][i] >= 0:
                 ratio_indexes.append(i)
                 ratios.append(Data[chromosome]["ratio"][i])
-
         differences=[]
-        for i in range(1,args.min_bins+1):
+        for i in range(1,args.nbins+1):
             tmp=[]
-            for j in range(0,len(ratios)-args.min_bins):
+            for j in range(0,len(ratios)-args.nbins):
                 tmp.append( abs(ratios[j]-ratios[i+j]))
             differences.append(tmp)
         differences=numpy.array(differences)
 
         change_points=[]
         #print len(ratios)
-        lim=args.plody*0.05
-        for i in range(0,len(ratios)-args.min_bins):
+        lim=(7*ratio_hist[chromosome][1])/args.plody
+        for i in range(0,len(ratios)-args.nbins):
             changes=differences[:,i]
             #print "{} {}".format(lim,numpy.min(changes))
-            if numpy.min(changes) > lim:
+            if numpy.median(changes) > lim:
                 #print "{} {}".format(lim,numpy.min(changes))
                 change_points.append(ratio_indexes[i])
 
@@ -363,17 +363,18 @@ def main(Data,GC_hist,args):
     #read the bam header
     args.contigs={}
     args.contig_order=[]
-    with os.popen("samtools view -H {}".format(args.bam)) as pipe:
-        for line in pipe:
-            if line[0] == "@":
-                if "SN:" in line:
-                    content=line.strip().split()
-                    chromosome=content[1].split("SN:")[-1]
-                    length=content[2].split("LN:")[-1]
-                    args.contigs[chromosome]=length
-                    args.contig_order.append(chromosome)
-                elif "\tSM:" in line and not args.sample:
-                    args.sample=line.split("\tSM:")[-1].split("\t")[0].strip()
+    if args.bam:
+        with os.popen("samtools view -H {}".format(args.bam)) as pipe:
+            for line in pipe:
+                if line[0] == "@":
+                    if "SN:" in line:
+                        content=line.strip().split()
+                        chromosome=content[1].split("SN:")[-1]
+                        length=content[2].split("LN:")[-1]
+                        args.contigs[chromosome]=length
+                        args.contig_order.append(chromosome)
+                    elif "\tSM:" in line and not args.sample:
+                        args.sample=line.split("\tSM:")[-1].split("\t")[0].strip()
 
     #print the variants
     print("done!")
@@ -425,7 +426,7 @@ def main(Data,GC_hist,args):
                     info_field +=";QUAL={}".format( failed_bins/float(variant["end"]-variant["start"]) )
 
                 phred=retrieve_phred(variant["ratio_list"],variant["ratio"],percentiles)
-                if(phred < args.score) and not abs( (variant["ratio"]*args.plody)-round((variant["ratio"]*args.plody)) ) < 0.2:
+                if phred < args.score:
                     filt="LowPhred"                      
                 
                 failed_bins=0
@@ -434,6 +435,8 @@ def main(Data,GC_hist,args):
                         failed_bins += 1
                 if failed_bins/float(variant["end"]-variant["start"]) > 0.9:
                     filt="RegionFilter"
+                if abs(variant["ratio"]-1) <= ratio_hist[chromosome][1]*4:
+                    filt="RatioFilter"
 
                 info_field +=";FAILED_BINS={}".format( failed_bins/float(variant["end"]-variant["start"]) )                
                 

@@ -1,7 +1,6 @@
 # AMYCNE
 
-AMYCNE is a copy number estimation toolkit, designed for WGS data. It contains modules for genotyping of copy number, counting the number of chromosomes, annotating vcf files, and calling CNVs. The input of AMYCNE is tab files 
-produced by TIDDIT.
+AMYCNE is a copy number estimation toolkit, designed for WGS data. It contains modules for genotyping of copy number, counting the number of chromosomes, annotating vcf files, and calling CNVs. AMYCNE require coverage tab files as input, these files may e produced using TIDDIT.
  
 # Installation
 
@@ -59,13 +58,35 @@ Each module requires a coverage file and a gc content file, having the same bin 
       The call module requires a coverage file, and a gc content file, and prints vcf file to --output
          python AMYCNE.py --call --gc gc_content_file.tab --coverage coverage.tab --output out.vcf
     
-#Generate GC content file
+# Generate GC content file
 
   The Generate_GC_tab.py script may used to generate gc content files:
   python Generate_GC_tab.py --fa reference.fa --size bin_size > gc_content.tab
 
   note that AMYCNE requires the same bin size for the coverage
 
-#Generate coverage Files
+# Generate coverage Files
 
 Coverage tab files may be generated using TIDDIT or sambamba, visit these tools for more information.
+The files should be given in the following format:
+
+#chromosome	start	end	coverage	quality
+
+chr1	0	100	23	10
+
+chr1	100	200	23	10
+
+chr1	200	300	23	10
+
+chr2	0	100	23	10
+
+chr2	100	200	23	10
+
+chr2	200	300	23	10
+
+chrX	0	100	23	10
+
+chrY	0	100	23	10
+
+
+The quality column is optional, the header is also optional, and is not read by the software. The bins need to cover the entire genome.

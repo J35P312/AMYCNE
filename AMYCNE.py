@@ -107,8 +107,11 @@ elif args.call:
     #get the gc content
     
     if args.coverage:
-        if not args.prefix:
-            args.prefix=args.coverage.replace(".tab",".vcf").replace(".bed",".vcf")
+        if not args.output:
+            args.output=args.coverage.replace(".tab",".vcf").replace(".bed",".vcf")
+            if args.output == args.coverage:
+                args.output=args.coverage + ".vcf"
+
         Data = common.gc_tab(args.gc)
         Data =common.coverage_tab(args.coverage,Data)
         #compute a gc content histogram

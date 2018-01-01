@@ -71,13 +71,22 @@ Coverage tab files may be generated using TIDDIT or sambamba, visit these tools 
 The files should be given in the following format:
 
 #chromosome	start	end	coverage	quality
+
 chr1	0	100	23	10
+
 chr1	100	200	23	10
+
 chr1	200	300	23	10
+
 chr2	0	100	23	10
+
 chr2	100	200	23	10
+
 chr2	200	300	23	10
+
 chrX	0	100	23	10
+
 chrY	0	100	23	10
+
 
 The quality column is optional, the header is also optional, and is not read by the software. The bins need to cover the entire genome.

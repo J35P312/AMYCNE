@@ -1,14 +1,26 @@
 # AMYCNE
 
-AMYCNE is a copy number estimation toolkit, designed for WGS data. It contains three modules. genotyping, which is used to estimate the copy number in one or more target region. annotation, which is used to estimate the copy number across structural variants stored in a vcf file, and annotates each variant with its copy number. The third module is the call module, this module is used to detect large CNVs
+AMYCNE is a copy number estimation toolkit, designed for WGS data. It contains modules for genotyping of copy number, counting the number of chromosomes, annotating vcf files, and calling CNVs. The input of AMYCNE is tab files 
+produced by TIDDIT.
+ 
 # Installation
 
-AMYCNE requires scipy and numpy. AMYCNE has been tested on python 2.7.11, but might run on older versions of python as well.
+AMYCNE requires scipy and numpy. These two packages may be installed using pip:
+
+	pip install numpy
+	pip install scipy
+
+AMYCNE has been tested on python 2.7.11, but might run on older versions of python as well.
 To improve the performance of AMYCNE, the code of AMYCNE may be compiled using cython:
 
 python setup.py build_ext --inplace
 
+
 # Run
+Type the following for a list of modules:
+
+    python AMYCNE.py
+
 The following section decribes the basic commands for running AMYCNE, for more info, use the --help flag for each module.
 Each module requires a coverage file and a gc content file, having the same bin size. 
 
@@ -41,19 +53,19 @@ Each module requires a coverage file and a gc content file, having the same bin 
          python AMYCNE.py --anotate --gc gc_content_file.tab --coverage coverage.tab --vcf sv.vcf > annotated.sv.vcf
     
     Call: Perform CNV calling
-      Use the anotate module by typing:
+      Use the call module by typing:
           python AMYCNE.py --call
           
-      The call module requires a coverage file, and a gc content file, and returns a vcf file to sdout
-         python AMYCNE.py --call --gc gc_content_file.tab --coverage coverage.tab > cnv.vcf
+      The call module requires a coverage file, and a gc content file, and prints vcf file to --output
+         python AMYCNE.py --call --gc gc_content_file.tab --coverage coverage.tab --output out.vcf
     
-#Generate Coverage Files
+#Generate GC content file
 
   The Generate_GC_tab.py script may used to generate gc content files:
   python Generate_GC_tab.py --fa reference.fa --size bin_size > gc_content.tab
 
   note that AMYCNE requires the same bin size for the coverage
 
-#Generate GC content file
+#Generate coverage Files
 
 Coverage tab files may be generated using TIDDIT or sambamba, visit these tools for more information.

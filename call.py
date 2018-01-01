@@ -5,7 +5,7 @@ import numpy
 import math
 import sys
 import os
-
+import time
 
 #claibrate the ratio values of the sex chromosomes
 def calibrate_sex(Data):
@@ -13,7 +13,7 @@ def calibrate_sex(Data):
     y_ratio=0
     for chromosome in Data["chromosomes"]:
         if chromosome == "Y" or "chrY" == chromosome:
-            y_ratio=numpy.median(Data[chromosome]["ratio"])
+            y_ratio=numpy.median( Data[chromosome]["ratio"][ numpy.where(Data[chromosome]["ratio"] >= 0 ) ])
             continue
 
     if y_ratio > 0.3:
@@ -59,10 +59,52 @@ def retrieve_phred(bins,ratio,percentiles):
     p=p*len(pvals)
     if not p or p < 0:
         return(1000)
-    phred=int(round(-math.log(p)))
+    phred=int(round(-math.log10(p)))
     if phred > 1000:
         return 1000
 
+    return(phred)
+
+def retrieve_phred_non_param(nbins,ratio,data):
+    pvals=[]
+    n=1000
+    p=0
+    sampled_chromosomes=[]
+    #pick chromosomes big enough to sample from
+    for chromosome in data["chromosomes"]:
+        if len(data[chromosome]["ratio"]) > 10*nbins and not "X" in chromosome and not "Y" in chromosome:
+            sampled_chromosomes.append(chromosome)
+
+    chromosomes=list(sorted(numpy.random.choice(sampled_chromosomes,size=n)))
+    simulated_positions=[]
+    #simulate 
+    for chromosome in sorted(sampled_chromosomes):
+        simulated_positions+=list(numpy.random.randint(0,high=len(data[chromosome]["ratio"])-nbins,size=chromosomes.count(chromosome)))
+    failed=0
+    for i in range(0,n):
+        chromosome=chromosomes[i]
+        pos=simulated_positions[i]
+        sim_bins=data[chromosome]["ratio"][pos:pos+nbins]
+        if list(sim_bins).count(-1)/float(len(sim_bins)) >= 0.6:
+            failed+=1
+            continue
+
+        sim_ratio=numpy.median(sim_bins[numpy.where(sim_bins >= 0)])
+        if ratio > 1 and sim_ratio > ratio:
+            p+=1
+        elif ratio < 1 and sim_ratio < ratio:
+            p +=1
+
+    if failed == n:
+        return 1000
+
+    p=p/float(n-failed)
+    if not p:
+        return(1000)
+    #normalise between 1000 and 1
+    phred=int(-10*math.log10(p))
+    if phred > 1000:
+        return 1000
     return(phred)
 
 
@@ -90,7 +132,7 @@ def segmentation(Data,minimum_bin):
                 ratio_list=Data[chromosome]["ratio"][start_pos:end_pos+1]
                 ratio_list=ratio_list[numpy.where(ratio_list >= 0)]
 
-                variants[chromosome].append({"start":start_pos,"end":end_pos,"type":past_variant_type,"ratio":numpy.median(ratio_list),"bins":end_pos-start_pos,"ratio_list":list(ratio_list)})
+                variants[chromosome].append({"start":start_pos,"end":end_pos,"type":past_variant_type,"ratio":numpy.average(ratio_list),"bins":end_pos-start_pos,"ratio_list":list(ratio_list)})
                 
                 ratio_list=[]
                 past_variant_type=variant_type       
@@ -247,7 +289,9 @@ def main(Data,GC_hist,args):
     #compute the scaled coverage
     print("finished reading the coverage data")
     bin_size=Data["bin_size"]
-    args.min_bins=int(args.min_var/float(bin_size))
+    args.min_bins=int(args.nbins/2)
+    args.min_var=args.min_bins*bin_size
+
     if not args.min_bins:
         print "Error: the minimum variant size is smaller than the bin sie of the input data!"
         quit()
@@ -262,14 +306,14 @@ def main(Data,GC_hist,args):
                         Data[chromosome]["ratio"].append(-1)                        
            else:
                 Data[chromosome]["ratio"].append(-1)
+        Data[chromosome]["ratio"]=numpy.array(Data[chromosome]["ratio"])
                 
     Data=calibrate_sex(Data)
     #filter the bins
     print("applying filters")
-    Data=filter(Data,int(args.filter/float(bin_size)))
+    Data=filter(Data,args.nbins*2)
     print("computing coverage histogram")
     ratio_hist=chromosome_hist(Data,args.Q)
-    print("Intrachromosomal scaling")
 
     hist=[]
     for chromosome in Data["chromosomes"]:
@@ -285,6 +329,22 @@ def main(Data,GC_hist,args):
     hist=numpy.array(hist)
 
     percentiles=numpy.percentile(hist,numpy.array(range(0,1001))/10.0)
+
+    noisy=False
+    overall_sd=numpy.std(hist[ numpy.where(hist <= 2) ])
+    if overall_sd > 0.15:
+        print "Warning: noisy data(RDstdev={})!".format(overall_sd)
+             
+        noisy=True
+        print "setting nbins:50"
+        args.min_bins=50
+        args.min_var=args.nbins*2*bin_size
+        Data=filter(Data,args.nbins*2)
+        ratio_hist=chromosome_hist(Data,args.Q)
+        
+        
+        
+        
 
     print("segmentation")
     for chromosome in Data["chromosomes"]:
@@ -307,16 +367,17 @@ def main(Data,GC_hist,args):
 
         change_points=[]
         #print len(ratios)
-        lim=(7*ratio_hist[chromosome][1])/args.plody
+
+        lim=overall_sd*2
         for i in range(0,len(ratios)-args.nbins):
             changes=differences[:,i]
             #print "{} {}".format(lim,numpy.min(changes))
-            if numpy.median(changes) > lim:
+            if numpy.median(changes) > lim and numpy.std(changes[1:]) < overall_sd:
                 #print "{} {}".format(lim,numpy.min(changes))
                 change_points.append(ratio_indexes[i])
 
         segments=[]
-        change_points.append( len( Data[chromosome]["ratio"]-1 ) )        
+        change_points.append( len( Data[chromosome]["ratio"] ) )        
         for i in range(0,len(change_points)):
             if i == 0:
                 segments.append(range(0,change_points[i]))
@@ -329,13 +390,13 @@ def main(Data,GC_hist,args):
             segment_intensities= Data[chromosome]["ratio"][segment]
             non_filt_bins=segment_intensities[numpy.where(segment_intensities >= 0)]
             TYPE="NEUTRAL"
-            median=numpy.median(non_filt_bins)
+            med=numpy.median(non_filt_bins)
 
             if len(non_filt_bins) < args.min_bins: 
                 TYPE="FILT"
-            elif median <= 1-0.5/args.plody:
+            elif med <= 1-0.5/args.plody:
                 TYPE="DEL"
-            elif median >= 1+0.5/args.plody:
+            elif med >= 1+0.5/args.plody:
                 TYPE="DUP"             
             Data[chromosome]["var"][segment]=TYPE
 
@@ -349,7 +410,7 @@ def main(Data,GC_hist,args):
                 if not chromosome in size_filtered_variants:
                     size_filtered_variants[chromosome] = []
                 size_filtered_variants[chromosome].append(variant)
-                
+  
     variants=merge(size_filtered_variants,args.min_bins)
     
     CNV_filtered={}
@@ -377,8 +438,8 @@ def main(Data,GC_hist,args):
                         args.sample=line.split("\tSM:")[-1].split("\t")[0].strip()
 
     #print the variants
-    print("done!")
-    f=open(args.prefix,"w")
+    print("computing statistics")
+    f=open(args.output,"w")
 
     f.write("##fileformat=VCFv4.1\n")
     f.write("##source=AMYCNE\n")
@@ -388,6 +449,8 @@ def main(Data,GC_hist,args):
     f.write("##INFO=<ID=END,Number=1,Type=Integer,Description=\"The end position of the variant\">\n")
     f.write("##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"The length of the variant\">\n")
     f.write("##INFO=<ID=BINS,Number=1,Type=Integer,Description=\"The number of bins used to call the variant\">\n")
+    f.write("##INFO=<ID=SCOREF,Number=1,Type=Integer,Description=\"The variant score produced from Fishers method\">\n")
+    f.write("##INFO=<ID=SCOREN,Number=1,Type=Integer,Description=\"The variant score produced from non-parametric sampling method\">\n")
     f.write("##INFO=<ID=QUAL,Number=1,Type=Float,Description=\"The fraction of low quality bins\">\n")
     f.write("##INFO=<ID=FAILED_BINS,Number=1,Type=Float,Description=\"The fraction of filtered bins\">\n")
     f.write("##INFO=<ID=ratio,Number=1,Type=Float,Description=\"Normalised coverage across the chromosome\">\n")
@@ -399,7 +462,8 @@ def main(Data,GC_hist,args):
             f.write("##contig=<ID={},length={}>\n".format(contig,args.contigs[contig]))
     f.write("##FILTER=<ID=LowBinQual,Description=\"More than 90% of the bins have less than {} mapping quality\">\n".format(args.Q))
     f.write("##FILTER=<ID=RegionFilter,Description=\"More than 90% of the bins are flagged extremed GC and/or mapping quality\">\n")
-    f.write("##FILTER=<ID=LowPhred,Description=\"Low variant P value\">\n")
+    f.write("##FILTER=<ID=RatioFilter,Description=\"The RD ratio is less than 2 sd of the RD, or RDR higher than ratiolim\">\n")
+    f.write("##FILTER=<ID=LowScore,Description=\"Low variant SCOREF value\">\n")
     f.write("##FORMAT=<ID=CN,Number=1,Type=Integer,Description=\"Copy number genotype for imprecise events\">\n")
     f.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
     f.write("##AMYCNEcmd=\"{}\"\n".format(" ".join(sys.argv)))
@@ -426,8 +490,12 @@ def main(Data,GC_hist,args):
                     info_field +=";QUAL={}".format( failed_bins/float(variant["end"]-variant["start"]) )
 
                 phred=retrieve_phred(variant["ratio_list"],variant["ratio"],percentiles)
+                #phred_non_param=retrieve_phred_non_param(variant["bins"],variant["ratio"],Data)
+                #info_field+=";SCOREF={};SCOREN={}".format(phred,phred_non_param)
+                info_field+=";SCOREF={}".format(phred)
+
                 if phred < args.score:
-                    filt="LowPhred"                      
+                    filt="LowScore"                      
                 
                 failed_bins=0
                 for i in range(variant["start"],variant["end"]):
@@ -435,7 +503,7 @@ def main(Data,GC_hist,args):
                         failed_bins += 1
                 if failed_bins/float(variant["end"]-variant["start"]) > 0.9:
                     filt="RegionFilter"
-                if abs(variant["ratio"]-1) <= ratio_hist[chromosome][1]*4:
+                if abs(variant["ratio"]-1) <= overall_sd*2 or abs(variant["ratio"]) > args.ratioLim:
                     filt="RatioFilter"
 
                 info_field +=";FAILED_BINS={}".format( failed_bins/float(variant["end"]-variant["start"]) )                

@@ -4,10 +4,11 @@ AMYCNE is a copy number estimation toolkit, designed for WGS data. It contains m
  
 # Installation
 
-AMYCNE requires scipy and numpy. These two packages may be installed using pip:
+AMYCNE requires bottleneck, scipy and numpy. These two packages may be installed using pip:
 
 	pip install numpy
 	pip install scipy
+	pip install bottleneck
 
 AMYCNE has been tested on python 2.7.11, but might run on older versions of python as well.
 To improve the performance of AMYCNE, the code of AMYCNE may be compiled using cython:

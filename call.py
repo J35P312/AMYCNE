@@ -1,6 +1,7 @@
 import common
 import scipy.signal
 import scipy.stats
+import bottleneck
 import numpy
 import math
 import sys
@@ -65,14 +66,14 @@ def retrieve_phred(bins,ratio,percentiles):
 
     return(phred)
 
-def retrieve_phred_non_param(nbins,ratio,data):
+def retrieve_phred_non_param(nbins,ratio,data,ratio_hist):
     pvals=[]
-    n=1000
+    n=10000
     p=0
     sampled_chromosomes=[]
     #pick chromosomes big enough to sample from
     for chromosome in data["chromosomes"]:
-        if len(data[chromosome]["ratio"]) > 10*nbins and not "X" in chromosome and not "Y" in chromosome:
+        if len(data[chromosome]["ratio"]) > 10*nbins and not "X" in chromosome and not "Y" in chromosome and abs(ratio_hist[chromosome][0]-1) < 0.1:
             sampled_chromosomes.append(chromosome)
 
     chromosomes=list(sorted(numpy.random.choice(sampled_chromosomes,size=n)))
@@ -85,14 +86,15 @@ def retrieve_phred_non_param(nbins,ratio,data):
         chromosome=chromosomes[i]
         pos=simulated_positions[i]
         sim_bins=data[chromosome]["ratio"][pos:pos+nbins]
+
         if list(sim_bins).count(-1)/float(len(sim_bins)) >= 0.6:
             failed+=1
             continue
 
-        sim_ratio=numpy.median(sim_bins[numpy.where(sim_bins >= 0)])
-        if ratio > 1 and sim_ratio > ratio:
+        sim_ratio=bottleneck.median(sim_bins[numpy.where(sim_bins >= 0)])
+        if ratio > 1 and sim_ratio >= ratio:
             p+=1
-        elif ratio < 1 and sim_ratio < ratio:
+        elif ratio < 1 and sim_ratio <= ratio:
             p +=1
 
     if failed == n:
@@ -100,11 +102,9 @@ def retrieve_phred_non_param(nbins,ratio,data):
 
     p=p/float(n-failed)
     if not p:
-        return(1000)
+        return(int(-10*math.log10(1/float(n-failed))))
     #normalise between 1000 and 1
     phred=int(-10*math.log10(p))
-    if phred > 1000:
-        return 1000
     return(phred)
 
 
@@ -285,6 +285,22 @@ def filter(Data,minimum_bin):
                 
     return(Data)
 
+def coverage_hist(Data,ratio_hist):
+
+    hist=[]
+    for chromosome in Data["chromosomes"]:
+        if ratio_hist[chromosome][0] < 0.5:
+            continue
+            
+        for i in range(0,len(Data[chromosome]["ratio"])):
+            if Data[chromosome]["ratio"][i] < 0:
+                continue
+            if not i % 100 and not numpy.isnan(Data[chromosome]["ratio"][i]):
+                hist.append(Data[chromosome]["ratio"][i])
+
+    hist=numpy.array(hist)
+    return(hist)
+
 def main(Data,GC_hist,args):
     #compute the scaled coverage
     print("finished reading the coverage data")
@@ -315,24 +331,12 @@ def main(Data,GC_hist,args):
     print("computing coverage histogram")
     ratio_hist=chromosome_hist(Data,args.Q)
 
-    hist=[]
-    for chromosome in Data["chromosomes"]:
-        if ratio_hist[chromosome][0] < 0.2:
-            continue
-            
-        for i in range(0,len(Data[chromosome]["ratio"])):
-            if Data[chromosome]["ratio"][i] < 0:
-                continue
-            #Data[chromosome]["ratio"][i]=Data[chromosome]["ratio"][i]/ratio_hist[chromosome][0]
-            if not i % 100 and not numpy.isnan(Data[chromosome]["ratio"][i]):
-                hist.append(Data[chromosome]["ratio"][i])
-    hist=numpy.array(hist)
-
+    hist=coverage_hist(Data,ratio_hist)
     percentiles=numpy.percentile(hist,numpy.array(range(0,1001))/10.0)
+    overall_sd=numpy.std(hist[ numpy.where(hist <= 2) ])
 
     noisy=False
-    overall_sd=numpy.std(hist[ numpy.where(hist <= 2) ])
-    if overall_sd > 0.15:
+    if overall_sd > 0.14 and 1 == 2:
         print "Warning: noisy data(RDstdev={})!".format(overall_sd)
              
         noisy=True
@@ -341,6 +345,10 @@ def main(Data,GC_hist,args):
         args.min_var=args.nbins*2*bin_size
         Data=filter(Data,args.nbins*2)
         ratio_hist=chromosome_hist(Data,args.Q)
+
+        hist=coverage_hist(Data,ratio_hist)
+        percentiles=numpy.percentile(hist,numpy.array(range(0,1001))/10.0)
+        overall_sd=numpy.std(hist[ numpy.where(hist <= 2) ])
         
         
         
@@ -372,7 +380,7 @@ def main(Data,GC_hist,args):
         for i in range(0,len(ratios)-args.nbins):
             changes=differences[:,i]
             #print "{} {}".format(lim,numpy.min(changes))
-            if numpy.median(changes) > lim and numpy.std(changes[1:]) < overall_sd:
+            if bottleneck.median(changes) > lim and numpy.std(changes[1:]) < overall_sd:
                 #print "{} {}".format(lim,numpy.min(changes))
                 change_points.append(ratio_indexes[i])
 
@@ -390,7 +398,7 @@ def main(Data,GC_hist,args):
             segment_intensities= Data[chromosome]["ratio"][segment]
             non_filt_bins=segment_intensities[numpy.where(segment_intensities >= 0)]
             TYPE="NEUTRAL"
-            med=numpy.median(non_filt_bins)
+            med=bottleneck.median(non_filt_bins)
 
             if len(non_filt_bins) < args.min_bins: 
                 TYPE="FILT"
@@ -463,9 +471,10 @@ def main(Data,GC_hist,args):
     f.write("##FILTER=<ID=LowBinQual,Description=\"More than 90% of the bins have less than {} mapping quality\">\n".format(args.Q))
     f.write("##FILTER=<ID=RegionFilter,Description=\"More than 90% of the bins are flagged extremed GC and/or mapping quality\">\n")
     f.write("##FILTER=<ID=RatioFilter,Description=\"The RD ratio is less than 2 sd of the RD, or RDR higher than ratiolim\">\n")
-    f.write("##FILTER=<ID=LowScore,Description=\"Low variant SCOREF value\">\n")
+    f.write("##FILTER=<ID=LowScore,Description=\"Low variant score\">\n")
     f.write("##FORMAT=<ID=CN,Number=1,Type=Integer,Description=\"Copy number genotype for imprecise events\">\n")
     f.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
+    f.write("##nbins={} RDstdev={}\n".format(args.nbins,overall_sd))
     f.write("##AMYCNEcmd=\"{}\"\n".format(" ".join(sys.argv)))
     if not args.sample:
         args.sample=args.coverage.split("/")[-1].split(".")[0]
@@ -490,11 +499,11 @@ def main(Data,GC_hist,args):
                     info_field +=";QUAL={}".format( failed_bins/float(variant["end"]-variant["start"]) )
 
                 phred=retrieve_phred(variant["ratio_list"],variant["ratio"],percentiles)
-                #phred_non_param=retrieve_phred_non_param(variant["bins"],variant["ratio"],Data)
-                #info_field+=";SCOREF={};SCOREN={}".format(phred,phred_non_param)
-                info_field+=";SCOREF={}".format(phred)
+                phred_non_param=retrieve_phred_non_param(variant["bins"],variant["ratio"],Data,ratio_hist)
+                info_field+=";SCOREF={};SCOREN={}".format(phred,phred_non_param)
+                #info_field+=";SCOREF={}".format(phred)
 
-                if phred < args.score:
+                if phred < args.scoref or phred_non_param < args.scoren:
                     filt="LowScore"                      
                 
                 failed_bins=0
@@ -512,7 +521,7 @@ def main(Data,GC_hist,args):
                 SEM=numpy.std(variant["ratio_list"])/numpy.sqrt( len(variant["ratio_list"]) )
                 ci="({},{})".format(round(mean-SEM*3,2),round(mean+SEM*3,2))
 
-                firstrow = "{}\t{}\tAMYCNE_{}\tN\t<{}>\t{}\t{}".format(chromosome,bin_size*variant["start"],id_tag,variant["type"],phred,filt)
+                firstrow = "{}\t{}\tAMYCNE_{}\tN\t<{}>\t{}\t{}".format(chromosome,bin_size*variant["start"],id_tag,variant["type"],phred_non_param,filt)
                 info_field+=";ratio={};ratioMAD={};coverage={};coverageMAD={}".format(ratio_hist[chromosome][0],ratio_hist[chromosome][1],ratio_hist[chromosome][2],ratio_hist[chromosome][3])
                 alt=abs((CN-args.plody))
                 if alt > args.plody:

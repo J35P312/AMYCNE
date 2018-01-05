@@ -306,7 +306,7 @@ def main(Data,GC_hist,args):
     print("finished reading the coverage data")
     bin_size=Data["bin_size"]
     args.min_bins=int(args.nbins/2)
-    args.min_var=args.min_bins*bin_size
+
 
     if not args.min_bins:
         print "Error: the minimum variant size is smaller than the bin sie of the input data!"
@@ -334,26 +334,7 @@ def main(Data,GC_hist,args):
     hist=coverage_hist(Data,ratio_hist)
     percentiles=numpy.percentile(hist,numpy.array(range(0,1001))/10.0)
     overall_sd=numpy.std(hist[ numpy.where(hist <= 2) ])
-
-    noisy=False
-    if overall_sd > 0.14 and 1 == 2:
-        print "Warning: noisy data(RDstdev={})!".format(overall_sd)
-             
-        noisy=True
-        print "setting nbins:50"
-        args.min_bins=50
-        args.min_var=args.nbins*2*bin_size
-        Data=filter(Data,args.nbins*2)
-        ratio_hist=chromosome_hist(Data,args.Q)
-
-        hist=coverage_hist(Data,ratio_hist)
-        percentiles=numpy.percentile(hist,numpy.array(range(0,1001))/10.0)
-        overall_sd=numpy.std(hist[ numpy.where(hist <= 2) ])
-        
-        
-        
-        
-
+  
     print("segmentation")
     for chromosome in Data["chromosomes"]:
         Data[chromosome]["var"]=numpy.repeat( "NEUTRAL",len(Data[chromosome]["ratio"]) );
@@ -447,6 +428,30 @@ def main(Data,GC_hist,args):
 
     #print the variants
     print("computing statistics")
+
+    vals=[]
+    counts={}
+    for chromosome in Data["chromosomes"]:
+        if chromosome in variants:
+          for variant in variants[chromosome]:
+            if variant["type"] == "DUP" or variant["type"] == "DEL" or 1 == 2:
+                phred_non_param=retrieve_phred_non_param(variant["bins"],variant["ratio"],Data,ratio_hist)
+                if not phred_non_param in counts:
+                    vals.append(phred_non_param)
+                    counts[phred_non_param]=0
+                counts[phred_non_param]+=1
+                variant["pred_non_param"]=phred_non_param
+
+    args.scoren=0
+    n=0
+    for val in sorted(vals,reverse=True):
+        #print "{} {}".format(val,counts[val])
+        if n+counts[val] < args.Evar:
+            args.scoren=val
+            n+=counts[val]
+        else:
+            break              
+
     f=open(args.output,"w")
 
     f.write("##fileformat=VCFv4.1\n")
@@ -474,7 +479,7 @@ def main(Data,GC_hist,args):
     f.write("##FILTER=<ID=LowScore,Description=\"Low variant score\">\n")
     f.write("##FORMAT=<ID=CN,Number=1,Type=Integer,Description=\"Copy number genotype for imprecise events\">\n")
     f.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
-    f.write("##nbins={} RDstdev={}\n".format(args.nbins,overall_sd))
+    f.write("##nbins={} RDstdev={} ScoreNLimit={}\n".format(args.nbins,overall_sd,args.scoren))
     f.write("##AMYCNEcmd=\"{}\"\n".format(" ".join(sys.argv)))
     if not args.sample:
         args.sample=args.coverage.split("/")[-1].split(".")[0]
@@ -499,7 +504,7 @@ def main(Data,GC_hist,args):
                     info_field +=";QUAL={}".format( failed_bins/float(variant["end"]-variant["start"]) )
 
                 phred=retrieve_phred(variant["ratio_list"],variant["ratio"],percentiles)
-                phred_non_param=retrieve_phred_non_param(variant["bins"],variant["ratio"],Data,ratio_hist)
+                phred_non_param=variant["pred_non_param"]
                 info_field+=";SCOREF={};SCOREN={}".format(phred,phred_non_param)
                 #info_field+=";SCOREF={}".format(phred)
 

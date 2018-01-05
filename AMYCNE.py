@@ -95,7 +95,7 @@ elif args.call:
     parser.add_argument('--refQ' , type=int,default=30,help="Minimum average mapping quality of the bins used for constructing the reference = 30")
     parser.add_argument('--Q' , type=int,default=30,help="Minimum average mapping quality of the bins used for copy number estimation default = 30")
     parser.add_argument('--max' , type=int,default=6,help="Maximum ratio = 6")
-    parser.add_argument('--Evar' , type=int,default=1750,help="Expected number of variants (default = 1750)")
+    parser.add_argument('--Evar' , type=int,default=2000,help="Expected number of variants (default = 2000)")
     parser.add_argument('--scoref' , type=int,default=30,help="The log(P) threshold of the Fisher method test ")
     parser.add_argument('--ratioLim' , type=float,default=2.5,help="Maximum variant rdr")
     parser.add_argument('--call' , action="store_true" ,help="perform CNV calling")

@@ -76,6 +76,9 @@ def retrieve_phred_non_param(nbins,ratio,data,ratio_hist):
         if len(data[chromosome]["ratio"]) > 10*nbins and not "X" in chromosome and not "Y" in chromosome and abs(ratio_hist[chromosome][0]-1) < 0.1:
             sampled_chromosomes.append(chromosome)
 
+    if not sampled_chromosomes:
+        return(int(-10*math.log10(1/float(n))))
+
     chromosomes=list(sorted(numpy.random.choice(sampled_chromosomes,size=n)))
     simulated_positions=[]
     #simulate 
@@ -91,7 +94,7 @@ def retrieve_phred_non_param(nbins,ratio,data,ratio_hist):
             failed+=1
             continue
 
-        sim_ratio=bottleneck.median(sim_bins[numpy.where(sim_bins >= 0)])
+        sim_ratio=bottleneck.median(sim_bins[numpy.where(sim_bins >= 0)],axis=0)
         if ratio > 1 and sim_ratio >= ratio:
             p+=1
         elif ratio < 1 and sim_ratio <= ratio:
@@ -132,7 +135,7 @@ def segmentation(Data,minimum_bin):
                 ratio_list=Data[chromosome]["ratio"][start_pos:end_pos+1]
                 ratio_list=ratio_list[numpy.where(ratio_list >= 0)]
 
-                variants[chromosome].append({"start":start_pos,"end":end_pos,"type":past_variant_type,"ratio":numpy.average(ratio_list),"bins":end_pos-start_pos,"ratio_list":list(ratio_list)})
+                variants[chromosome].append({"start":start_pos,"end":end_pos,"type":past_variant_type,"ratio":bottleneck.median(ratio_list),"bins":end_pos-start_pos,"ratio_list":list(ratio_list)})
                 
                 ratio_list=[]
                 past_variant_type=variant_type       
@@ -144,8 +147,8 @@ def segmentation(Data,minimum_bin):
 def mad(arr):
     #copied from:https://stackoverflow.com/questions/8930370/where-can-i-find-mad-mean-absolute-deviation-in-scipy
     arr = numpy.ma.array(arr).compressed() # should be faster to not use masked arrays.
-    med = numpy.median(arr)
-    return numpy.median(numpy.abs(arr - med))
+    med = bottleneck.median(arr)
+    return bottleneck.median(numpy.abs(arr - med))
 
 def chromosome_hist(Data,Q):
     ratio_hist={}
@@ -334,8 +337,7 @@ def main(Data,GC_hist,args):
     hist=coverage_hist(Data,ratio_hist)
     percentiles=numpy.percentile(hist,numpy.array(range(0,1001))/10.0)
     overall_sd=numpy.std(hist[ numpy.where(hist <= 2) ])
-  
-    print("segmentation")
+    print("derivative based segmentation")
     for chromosome in Data["chromosomes"]:
         Data[chromosome]["var"]=numpy.repeat( "NEUTRAL",len(Data[chromosome]["ratio"]) );
         Data[chromosome]["ratio"]=numpy.array(Data[chromosome]["ratio"])
@@ -357,11 +359,12 @@ def main(Data,GC_hist,args):
         change_points=[]
         #print len(ratios)
 
-        lim=overall_sd*2
+        lim=2*overall_sd
+        #lim=0.2
         for i in range(0,len(ratios)-args.nbins):
             changes=differences[:,i]
             #print "{} {}".format(lim,numpy.min(changes))
-            if bottleneck.median(changes) > lim and numpy.std(changes[1:]) < overall_sd:
+            if bottleneck.median(changes,axis=0) > lim and numpy.std(changes[1:]) < overall_sd:
                 #print "{} {}".format(lim,numpy.min(changes))
                 change_points.append(ratio_indexes[i])
 
@@ -379,7 +382,7 @@ def main(Data,GC_hist,args):
             segment_intensities= Data[chromosome]["ratio"][segment]
             non_filt_bins=segment_intensities[numpy.where(segment_intensities >= 0)]
             TYPE="NEUTRAL"
-            med=bottleneck.median(non_filt_bins)
+            med=bottleneck.median(non_filt_bins,axis=0)
 
             if len(non_filt_bins) < args.min_bins: 
                 TYPE="FILT"
@@ -388,6 +391,22 @@ def main(Data,GC_hist,args):
             elif med >= 1+0.5/args.plody:
                 TYPE="DUP"             
             Data[chromosome]["var"][segment]=TYPE
+
+
+    print("raw coverage segmentation")
+    for chromosome in Data["chromosomes"]:
+        for i in range(0,len(Data[chromosome]["ratio"])-10*args.nbins):
+            seg_bins=Data[chromosome]["ratio"][i:i+10*args.nbins]
+
+            if list(seg_bins).count(-1)/float(len(seg_bins)) >= 0.6:
+                continue
+
+            seg_bin_median=bottleneck.median(seg_bins[numpy.where(seg_bins >= 0)],axis=0)
+
+            if seg_bin_median >= 1+overall_sd*2.5 and len(seg_bins[numpy.where(seg_bins >= 0.5/args.plody+1)])/float(len(seg_bins)) >= 0.9:
+                Data[chromosome]["var"][i:i+10*args.nbins]="DUP"
+            elif seg_bin_median <= 1-overall_sd*2.5 and len(seg_bins[numpy.where(seg_bins >= 1-0.5/args.plody)])/float(len(seg_bins)) >= 0.9:
+                Data[chromosome]["var"][i:i+10*args.nbins]="DEL"
 
     print("merging")
     variants=segmentation(Data,args.min_bins)
@@ -431,6 +450,7 @@ def main(Data,GC_hist,args):
 
     vals=[]
     counts={}
+    n_variants=0
     for chromosome in Data["chromosomes"]:
         if chromosome in variants:
           for variant in variants[chromosome]:
@@ -441,17 +461,9 @@ def main(Data,GC_hist,args):
                     counts[phred_non_param]=0
                 counts[phred_non_param]+=1
                 variant["pred_non_param"]=phred_non_param
-
-    args.scoren=0
-    n=0
-    for val in sorted(vals,reverse=True):
-        #print "{} {}".format(val,counts[val])
-        if n+counts[val] < args.Evar:
-            args.scoren=val
-            n+=counts[val]
-        else:
-            break              
-
+                n_variants+=1
+             
+    args.scoren+=round(float(n_variants/1000.0))
     f=open(args.output,"w")
 
     f.write("##fileformat=VCFv4.1\n")
@@ -535,4 +547,5 @@ def main(Data,GC_hist,args):
                 genotype="/".join(["0"]*ref+["1"]*alt)
                 format_field="{}\t{}:{}".format(format_column,genotype,CN)
                 f.write("\t".join([firstrow,info_field,format_field])+"\n")
+                
     f.close()

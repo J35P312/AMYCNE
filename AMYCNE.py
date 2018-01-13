@@ -86,7 +86,6 @@ elif args.annotate:
 elif args.call:
     parser = argparse.ArgumentParser("""AMYCNE-call: Detect copy number variants and print them to a vcf""")
     parser.add_argument('--gc' , type=str,required= True, help="the tab file containing gc content")
-
     parser.add_argument('--coverage', required=True, type=str,default=None, help="the tab file containing coverage")
     parser.add_argument('--c_cutoff' , type=int,default=100,help="bins having coverage higher than the cut off value are excluded from the ref calculations")
     parser.add_argument('--s_cutoff' , type=int,default=50,help="bins that have less than the s_cutoff value similar bins are discarded from copy number esitmation")
@@ -95,9 +94,8 @@ elif args.call:
     parser.add_argument('--refQ' , type=int,default=30,help="Minimum average mapping quality of the bins used for constructing the reference = 30")
     parser.add_argument('--Q' , type=int,default=30,help="Minimum average mapping quality of the bins used for copy number estimation default = 30")
     parser.add_argument('--max' , type=int,default=6,help="Maximum ratio = 6")
-    parser.add_argument('--Evar' , type=int,default=2000,help="Expected number of variants (default = 2000)")
     parser.add_argument('--scoref' , type=int,default=30,help="The log(P) threshold of the Fisher method test ")
-    parser.add_argument('--scoren' , type=int,default=17,help="minimum non parametric phredscore (default = 17)")
+    parser.add_argument('--scoren' , type=int,default=17,help="minimum non parametric phred score (default = 17)")
     parser.add_argument('--ratioLim' , type=float,default=2.5,help="Maximum variant rdr")
     parser.add_argument('--call' , action="store_true" ,help="perform CNV calling")
     parser.add_argument('--bam' ,type=str ,help="the bam file (AMYCNE will only extract the header for sample and reference information)")
@@ -106,8 +104,7 @@ elif args.call:
     parser.add_argument('--sample' , type=str, help="the sample id(default= extracted from the SM tag of the bam field, else the  filename of the coverage file)")    
     args = parser.parse_args()
 
-    #get the gc content
-    
+    #get the gc content    
     if args.coverage:
         if not args.output:
             args.output=args.coverage.replace(".tab",".vcf").replace(".bed",".vcf")

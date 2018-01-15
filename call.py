@@ -463,7 +463,7 @@ def main(Data,GC_hist,args):
                 variant["pred_non_param"]=phred_non_param
                 n_variants+=1
              
-    args.scoren+=round(float(n_variants/1000.0))
+    args.scoren+=round(10*math.log10(n_variants/1000.0))
     f=open(args.output,"w")
 
     f.write("##fileformat=VCFv4.1\n")

@@ -86,7 +86,11 @@ def gc_hist(data,coverage_cutoff,size_cutoff,refQ):
             bin_coverage= numpy.median(gc_dictionary[gc])
             if bin_coverage < coverage_cutoff:
                 hist[gc]=[bin_coverage,len(gc_dictionary[gc])]
-        
+
+    if not hist:
+        print "Error: Too many low quality regions! consider rerunning the analysis using a smaller --size_cutoff, and  less strict regions masking"
+        quit()
+
     return(hist)
 
 

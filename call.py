@@ -318,7 +318,10 @@ def main(Data,GC_hist,args):
     for chromosome in Data["chromosomes"]:
         Data[chromosome]["ratio"]=[]
         for i in range(0,len(Data[chromosome]["coverage"])):
-           if GC_hist[Data[chromosome]["GC"][i]][0] > 0 and not Data[chromosome]["GC"][i]== -1:
+
+           if not Data[chromosome]["GC"][i] in GC_hist:
+                Data[chromosome]["ratio"].append(-1)
+           elif GC_hist[Data[chromosome]["GC"][i]][0] > 0 and not Data[chromosome]["GC"][i]== -1:
                     if Data[chromosome]["coverage"][i]/GC_hist[Data[chromosome]["GC"][i]][0] < args.max:
                         Data[chromosome]["ratio"].append(Data[chromosome]["coverage"][i]/GC_hist[Data[chromosome]["GC"][i]][0])
                     else:
@@ -462,8 +465,10 @@ def main(Data,GC_hist,args):
                 counts[phred_non_param]+=1
                 variant["pred_non_param"]=phred_non_param
                 n_variants+=1
-             
-    args.scoren+=round(10*math.log10(n_variants/1000.0))
+    if n_variants:       
+        args.scoren+=round(10*math.log10(n_variants/1000.0))
+    else:
+        args.scoren=1
     f=open(args.output,"w")
 
     f.write("##fileformat=VCFv4.1\n")

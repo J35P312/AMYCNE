@@ -42,6 +42,9 @@ if args.ff:
     y_bins=[]
  
     for chromosome in Data["chromosomes"]:
+        if "21" in chromosome or "X" in chromosome or "13" in chromosome or "9" in chromosome or "18" in chromosome or len(chromosome) > 5:
+           continue
+
         for i in range(0,len(Data[chromosome]["coverage"])):
            if not Data[chromosome]["GC"][i] in GC_hist:
                continue
@@ -55,7 +58,7 @@ if args.ff:
     ff="NA"
     medY=numpy.median(y_bins)
     medA=numpy.median(autosomal_bins)
-    if medY/medA > 0.0001:
+    if medY/medA*2 > 0.0001:
         ff= medY/medA*2
         sex=male
 

@@ -8,14 +8,14 @@ def main(Data,GC_hist,args):
     if args.vcf:
         for line in open(args.vcf):
             if line[0] == "#" and line[1] == "#":
-                print line.strip()
+                print (line.strip())
             
             elif line[0] == "#":
-                print "##INFO=<ID={},Number=1,Type=Float,Description=\"estimated copy number\">".format("AMYCNE")
-                print "##INFO=<ID={},Number=2,Type=Float,Description=\"99% confidence interval around the estimated CN\">".format("AMYCNECI")
-                print "##INFO=<ID={},Number=1,Type=Float,Description=\"ratio of bins used for CN estimation\">".format("BIN_RATIO")
-                print "##INFO=<ID={},Number=1,Type=Float,Description=\"mean coverage of the reference bins\">".format("REFCOV")
-                print line.strip()
+                print ("##INFO=<ID={},Number=1,Type=Float,Description=\"estimated copy number\">".format("AMYCNE"))
+                print ("##INFO=<ID={},Number=2,Type=Float,Description=\"99% confidence interval around the estimated CN\">".format("AMYCNECI"))
+                print ("##INFO=<ID={},Number=1,Type=Float,Description=\"ratio of bins used for CN estimation\">".format("BIN_RATIO"))
+                print ("##INFO=<ID={},Number=1,Type=Float,Description=\"mean coverage of the reference bins\">".format("REFCOV"))
+                print (line.strip())
             else:
                 chrA,posA,chrB,posB,event_type,INFO,FORMAT = readVCF.readVCFLine(line)
                 
@@ -37,14 +37,14 @@ def main(Data,GC_hist,args):
                             bins =-1
                         content[7] += ";AMYCNE=" + str(int(CNE)) + ";BIN_RATIO=" + str(used_bins/float(bins)) + ";REFCOV=" + str(round(ref,2)) + ";AMYCNECI=" + ci
                         new_line="\t".join(content)
-                        print new_line.strip()
+                        print (new_line.strip())
                 else:
-                    print line.strip()
+                    print (line.strip())
                     
     elif args.bed:
         for line in open(args.bed):
             if line[0] == "#":
-                print "{}\t{}\t{}\t{}\t{}".format(line.strip(),"CN","CI","RATIO","Refcov")
+                print ("{}\t{}\t{}\t{}\t{}".format(line.strip(),"CN","CI","RATIO","Refcov"))
                 continue
             
             content=line.split("\t")
@@ -71,6 +71,6 @@ def main(Data,GC_hist,args):
                     content=line.split("\t")
                     if bins == 0:
                         bins =-1
-                    print "{}\t{}\t{}\t{}\t{}".format(line.strip(), CNE,ci, used_bins/float(bins), str(round(ref,2)))   
+                    print ("{}\t{}\t{}\t{}\t{}".format(line.strip(), CNE,ci, used_bins/float(bins), str(round(ref,2))))   
     else:
-        print "ERROR: no input source, please select vcf or bed"
+        print ("ERROR: no input source, please select vcf or bed")

@@ -312,7 +312,7 @@ def main(Data,GC_hist,args):
 
 
     if not args.min_bins:
-        print "Error: the minimum variant size is smaller than the bin sie of the input data!"
+        print ("Error: the minimum variant size is smaller than the bin sie of the input data!")
         quit()
 			
     for chromosome in Data["chromosomes"]:

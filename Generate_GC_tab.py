@@ -45,10 +45,10 @@ def calculate_complexity(section,k):
 reference={}
 chromosomes=[]
 if not args.fa.endswith(".gz"):
-    with open(args.fa, 'r+') as f:
+    with open(args.fa, 'r') as f:
         sequence=f.read()
 else:
-    with gzip.open(args.fa, 'r+') as f:
+    with gzip.open(args.fa, 'r') as f:
         sequence=f.read()
 
 split_reference=sequence.split(">")

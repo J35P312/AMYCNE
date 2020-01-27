@@ -28,11 +28,12 @@ args, unknown = parser.parse_known_args()
 if args.ff:
 
     parser = argparse.ArgumentParser("""AMYCNE-ff: Estimate fetal fraction based on read depth across chromosome Y""")
+    parser.add_argument('--ff' , action="store_true" ,help="Predict fetal fraction based on the number of reads of chromosome Y")
     parser.add_argument('--coverage' , type=str, help="the tab file containing coverage tab files")
     parser.add_argument('--gc' , type=str,required= True, help="the tab file containing gc content")
-    parser.add_argument('--refQ' , type=int,default=10,help="Minimum average mapping quality of the bins used for constructing the reference = 30")
+    parser.add_argument('--refQ' , type=int,default=10,help="Minimum average mapping quality of the bins used for constructing the reference = 10")
     parser.add_argument('--c_cutoff' , type=int,default=100,help="bins having coverage higher than the cut off value are excluded from the ref calculations")
-    parser.add_argument('--s_cutoff' , type=int,default=50,help="bins that have less than the s_cutoff value similar bins are discarded from copy nmber esitmation")
+    parser.add_argument('--s_cutoff' , type=int,default=50,help="bins that have less than the s_cutoff value similar bins are discarded from copy number esitmation")
     args = parser.parse_args()
 
     Data= common.gc_tab(args.gc)
@@ -40,35 +41,50 @@ if args.ff:
     GC_hist=common.gc_hist(Data,args.c_cutoff,args.s_cutoff,args.refQ)
     autosomal_bins=[]
     y_bins=[]
+    x_bins=[]
  
     for chromosome in Data["chromosomes"]:
-        if "21" in chromosome or "X" in chromosome or "13" in chromosome or "9" in chromosome or "18" in chromosome or len(chromosome) > 5:
+        if "21" in chromosome or "13" in chromosome or "9" in chromosome or "18" in chromosome or len(chromosome) > 5:
            continue
 
         for i in range(0,len(Data[chromosome]["coverage"])):
-           if not Data[chromosome]["GC"][i] in GC_hist:
+           if not Data[chromosome]["GC"][i] in GC_hist or Data[chromosome]["GC"][i] == -1 or GC_hist[Data[chromosome]["GC"][i]][0] == -1:
+               continue
+
+           if Data[chromosome]["coverage"][i] > 0 and Data[chromosome]["quality"][i] < 15:  
                continue
 
            if chromosome == "Y" or chromosome == "chrY": 
+               #print (Data[chromosome]["coverage"][i])
+               #print (GC_hist[Data[chromosome]["GC"][i]][0])
+               #y_bins.append(Data[chromosome]["coverage"][i])
+               if Data[chromosome]["coverage"][i]/GC_hist[Data[chromosome]["GC"][i]][0] > 0.5:
+                   continue
                y_bins.append(Data[chromosome]["coverage"][i]/GC_hist[Data[chromosome]["GC"][i]][0])
+           elif chromosome == "X" or chromosome == "chrX":
+               x_bins.append(Data[chromosome]["coverage"][i]/GC_hist[Data[chromosome]["GC"][i]][0])
+
            else:
+               #autosomal_bins.append(Data[chromosome]["coverage"][i])
                autosomal_bins.append(Data[chromosome]["coverage"][i]/GC_hist[Data[chromosome]["GC"][i]][0])
 
     sex="female"
     ff="NA"
     medY=numpy.median(y_bins)
+    medX=numpy.median(x_bins)
     medA=numpy.median(autosomal_bins)
-    if medY/medA*2 > 0.0001:
-        ff= medY/medA*2
-        sex=male
 
-    print ("sample sex FF medAutosomal medY")
-    print ("{} {} {} {} {}".format(args.coverage.split("/")[-1].split(".")[0],sex,ff,medA,medY) )       
+    if medY > 0.01:
+        sex= "male"
+
+    ff= medY/medA
+    print ("sample sex medAutosomal FFY medX")
+    print ("{} {} {} {} {}".format(args.coverage.split("/")[-1].split(".")[0],sex,medA,medY,medX) )       
 
 
 
 
-if args.genotype:
+elif args.genotype:
     parser = argparse.ArgumentParser("""AMYCNE-genotype:compute the copy number of selected regions based on the region input file""")
     parser.add_argument('--genotype' , action="store_true" ,help="compute the copy number in selected regions")
     parser.add_argument('--region' , type=str,help="the file containing selected regions")

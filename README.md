@@ -68,7 +68,7 @@ Each module requires a coverage file and a gc content file, having the same bin 
 
 # Generate coverage Files
 
-Coverage tab files may be generated using TIDDIT or sambamba, visit these tools for more information.
+Coverage tab files may be generated using TIDDIT.
 The files should be given in the following format:
 
 #chromosome	start	end	coverage	quality
@@ -88,6 +88,5 @@ chr2	200	300	23	10
 chrX	0	100	23	10
 
 chrY	0	100	23	10
-
 
 The quality column is optional, the header is also optional, and is not read by the software. The bins need to cover the entire genome.

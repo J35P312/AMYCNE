@@ -1,7 +1,9 @@
 # AMYCNE
 
 AMYCNE is a copy number estimation toolkit, designed for WGS data. It contains modules for genotyping of copy number, counting the number of chromosomes, annotating vcf files, and calling CNVs. AMYCNE require coverage tab files as input, these files may e produced using TIDDIT.
- 
+
+NOTE: The variant calling module is in a development stage, use it at your own risk!
+
 # Installation
 
 AMYCNE requires bottleneck, scipy and numpy. These two packages may be installed using pip:

@@ -84,7 +84,7 @@ if args.ff:
         sex= "male"
 
     print ("sample sex medAutosomal FFY FFX")
-    print ("{} {} {} {} {}".format(args.coverage.split("/")[-1].split(".")[0],sex, medA, args.scaling*medY, args.scaling*medX) )
+    print ("{} {} {} {} {}".format(args.coverage.split("/")[-1].split(".")[0],sex, medA, args.scaling*medY, args.scaling*(1-medX) ) )
 
 elif args.genotype:
     parser = argparse.ArgumentParser("""AMYCNE-genotype:compute the copy number of selected regions based on the region input file""")

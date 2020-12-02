@@ -31,6 +31,7 @@ if args.ff:
     parser.add_argument('--ff' , action="store_true" ,help="Predict fetal fraction based on the number of reads of chromosome Y")
     parser.add_argument('--coverage' , type=str, help="the tab file containing coverage tab files")
     parser.add_argument('--Q' , type=int,default=15,help="Minimum average mapping quality of the bins used for copy number estimation default = 15")
+    parser.add_argument('--scaling' , type=float,default=2,help="multiply median of Y with this scalign factor (default=2)")
     parser.add_argument('--gc' , type=str,required= True, help="the tab file containing gc content")
     parser.add_argument('--refQ' , type=int,default=10,help="Minimum average mapping quality of the bins used for constructing the reference = 10")
     parser.add_argument('--c_cutoff' , type=int,default=100,help="bins having coverage higher than the cut off value are excluded from the ref calculations")
@@ -82,8 +83,8 @@ if args.ff:
     if medY > 0.01:
         sex= "male"
 
-    print ("sample sex medAutosomal FFY medX")
-    print ("{} {} {} {} {}".format(args.coverage.split("/")[-1].split(".")[0],sex,medA,medY,medX) )
+    print ("sample sex medAutosomal FFY FFX")
+    print ("{} {} {} {} {}".format(args.coverage.split("/")[-1].split(".")[0],sex, medA, args.scaling*medY, args.scaling*medX) )
 
 elif args.genotype:
     parser = argparse.ArgumentParser("""AMYCNE-genotype:compute the copy number of selected regions based on the region input file""")
